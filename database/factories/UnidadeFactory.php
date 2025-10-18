@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Models\Bandeira;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use App\Models\Unidade;
 /**
@@ -22,6 +23,7 @@ class UnidadeFactory extends Factory
             'nome_fantasia' => $this->faker->company(),
             'razao_social' => $this->faker->companySuffix(),
             'cnpj' => $this->faker->numerify('##.###.###/####-##'),
+            'bandeira_id' => Bandeira::factory()
         ];
     }
 }

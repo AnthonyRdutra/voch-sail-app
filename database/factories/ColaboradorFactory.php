@@ -4,7 +4,7 @@ namespace Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
 
-use App\Models\Colaborador; 
+use App\Models\{Colaborador, Unidade}; 
 /**
  * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Colaborador>
  */
@@ -23,7 +23,8 @@ class ColaboradorFactory extends Factory
         return [
             'nome' => $this->faker->company(),
             'email' => $this->faker->companyEmail(),
-            'cpf' => $this->faker->numerify('###.###.###-##')
+            'cpf' => $this->faker->numerify('###.###.###-##'),
+            'unidade_id' => Unidade::factory()
         ];
     }
 }

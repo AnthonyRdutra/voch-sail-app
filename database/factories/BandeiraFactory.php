@@ -3,8 +3,7 @@
 namespace Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-
-use App\Models\Bandeira; 
+use App\Models\{Bandeira, GrupoEconomico}; 
 
 /**
  * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Bandeira>
@@ -22,7 +21,8 @@ class BandeiraFactory extends Factory
     public function definition(): array
     {
         return [
-            'nome' => $this->faker->company() 
+            'nome' => $this->faker->company(),
+            'grupo_economico_id' => GrupoEconomico::factory()
         ];
     }
 }

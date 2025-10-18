@@ -1,18 +1,23 @@
 <?php
 
-namespace App\Livewire; 
+namespace App\Livewire;
 
-use Livewire\Component; 
+use Livewire\Component;
 
-class HomeComponent extends Component {
-    public $activeCard = 'grupos'; 
+class HomeComponent extends Component
+{
 
-    public function setCard($card)
+    public $painel;
+
+    public function mount()
     {
-        $this->activeCard = $card; 
+        if (empty($this->painel)) {
+            $this->painel = 'cadastros';
+        }
     }
-
-    public function render(){
+    
+    public function render()
+    {
         return view('livewire.home-component')->layout('layouts.app');
     }
 }

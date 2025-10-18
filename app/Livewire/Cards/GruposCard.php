@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Livewire;
+namespace App\Livewire\Cards;
 
 use Livewire\Component;
 use App\Http\Controllers\GrupoEconomicoController;
@@ -9,9 +9,9 @@ use App\Traits\ControllerInvoker;
 class GruposCard extends Component
 {
     use ControllerInvoker;
-
     public $msg;
     public $nome;
+    public $grupo_nome;
 
     public function grupoStore()
     {

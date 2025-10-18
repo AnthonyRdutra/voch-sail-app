@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Livewire;
+namespace App\Livewire\Cards;
 
 use Livewire\Component;
 use App\Http\Controllers\{GrupoEconomicoController, BandeiraController};
@@ -10,16 +10,15 @@ class BandeirasCard extends Component
 {
     use ControllerInvoker;
 
-    public $msg;
-    public $grupoEconomico;
+    public $grupoEconomico = [];
     public $grupo_economico_id;
     public $bandeira_nome;
+    public $canSave = false;
+    public $msg = null;
 
     public function mount()
     {
-        if (empty($this->grupoEconomico)) {
-            $this->grupoEconomico = $this->listGrupoEconomico();
-        }
+        $this->listGrupoEconomico();
     }
 
 
@@ -33,7 +32,7 @@ class BandeirasCard extends Component
 
             $data = $response->getData(true);
             $this->msg = $data['message'] ?? 'bandeira salva com sucesso';
-            $this->reset(['bandeira', 'grupo_economico_id']);
+            $this->reset(['bandeira_nome', 'grupo_economico_id']);
         } catch (\Throwable $e) {
             $this->msg = 'Erro: ' . $e->getMessage();
         }
@@ -43,12 +42,16 @@ class BandeirasCard extends Component
     {
         try {
             $response = $this->callController(GrupoEconomicoController::class, 'index');
-            $data = $response->getData(true);
-            $this->msg = $data['message'] ?? $data ?? [];
-            return $this->grupoEconomico = $data['data'];
+            $grupos = json_decode(json_encode($response->getData(true)), true) ?? [];
+            $this->grupoEconomico = $grupos['data'];
+            $this->canSave = count($grupos) > 0;
+            $this->msg = $this->canSave
+                ? null
+                : '⚠ Nenhum dado disponível para listar os grupos econômicos.';
         } catch (\Throwable $e) {
-            $this->msg = 'Erro: ' . $e;
-            return $this->grupoEconomico = [];
+            $this->grupoEconomico = [];
+            $this->canSave = false;
+            $this->msg = 'Erro: ' . $e->getMessage();
         }
     }
 }

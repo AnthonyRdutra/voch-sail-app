@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Livewire;
+namespace App\Livewire\Cards;
 
 use Livewire\Component;
 use App\Http\Controllers\{ColaboradorController, UnidadeController};
@@ -10,12 +10,13 @@ class ColaboradoresCard extends Component
 {
     use ControllerInvoker;
 
-    public $msg;
-    public $unidades = [];
-    public $unidade_id;
     public $colaborador_nome;
-    public $cpf;
     public $email;
+    public $cpf;
+    public $unidade_id;
+    public $unidades = [];
+    public $msg = null;
+    public bool $canSave = false;
 
     public function mount()
     {
@@ -29,11 +30,13 @@ class ColaboradoresCard extends Component
                 'nome' => $this->colaborador_nome,
                 'email' => $this->email,
                 'cpf' => $this->cpf,
-                'unidade_id' => $this->unidade_id
+                'unidade_id' => $this->unidade_id,
             ]);
 
             $data = $response->getData(true);
-            $this->msg = $data['message'] ?? 'bandeira salva com sucesso';
+            $this->msg = $data['message'] ?? 'Colaborador salvo com sucesso!';
+
+            // limpa os campos após salvar
             $this->reset(['colaborador_nome', 'email', 'cpf', 'unidade_id']);
         } catch (\Throwable $e) {
             $this->msg = 'Erro: ' . $e->getMessage();
@@ -44,20 +47,23 @@ class ColaboradoresCard extends Component
     {
         try {
             $response = $this->callController(UnidadeController::class, 'index');
-            $data = $response->getData(true);
+            $data = json_decode(json_encode($response->getData(true)), true) ?? [];
 
             $unidades = $data['data'] ?? $data ?? [];
-
-            // Corrige caso o controller retorne array aninhado
-            if (isset($unidades[0]) && is_array($unidades[0]) && isset($unidades[0][0])) {
+            
+            if (isset($unidades[0]) && is_array($unidades[0]) && array_is_list($unidades[0])) {
                 $unidades = $unidades[0];
             }
 
-            $this->unidades = is_array($unidades) ? $unidades : [];
-            $this->msg = $data['message'] ?? null;
+            $this->unidades = $unidades; 
+            $this->canSave = count($this->unidades) > 0;
+            $this->msg = $this->canSave
+                ? null
+                : 'Não há unidades cadastradas. Cadastre uma antes de criar colaboradores.';
         } catch (\Throwable $e) {
-            $this->msg = 'Erro: ' . $e->getMessage();
             $this->unidades = [];
+            $this->canSave = false;
+            $this->msg = 'Erro: ' . $e->getMessage();
         }
     }
 }

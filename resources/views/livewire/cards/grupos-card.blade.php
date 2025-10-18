@@ -1,4 +1,4 @@
-<div>
+<div wire:key="grupos-card">
     <h3>Cadastro Grupo econômico</h3>
 
     <div>
