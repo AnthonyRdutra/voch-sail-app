@@ -23,7 +23,7 @@ class DadosRelacionaisTest extends TestCase
     public function setUp(): void
     {
 
-        parent::setUP();
+        parent::setUp();
         $this->grupo = GrupoEconomico::factory()->create();
         $this->bandeiras = Bandeira::factory(3)->create(['grupo_economico_id' => $this->grupo->id]);
         

@@ -25,7 +25,7 @@ class ExportarRelatorioJob implements ShouldQueue
     {
         $this->dados = $dados;
         $this->tipo = $tipo;
-        $this->path = $path;
+        $this->path = $path ?: 'exports';
     }
 
     public function handle(ExportacaoService $service): void
@@ -49,8 +49,15 @@ class ExportarRelatorioJob implements ShouldQueue
 
             $service->gerar($this->dados, $this->tipo, $fullPath);
 
-            Storage::disk('local')->put(
-                "{$this->path}/status_{$this->tipo}.json",
+            $statusDir = storage_path('app/status_exports');
+            if (!is_dir($statusDir)) {
+                mkdir($statusDir, 0777, true);
+            }
+
+            $statusPath = "{$statusDir}/status_{$this->tipo}.json";
+
+            file_put_contents(
+                $statusPath,
                 json_encode([
                     'done' => true,
                     'path' => $fullPath,
@@ -59,6 +66,8 @@ class ExportarRelatorioJob implements ShouldQueue
                     'sheets' => array_keys($this->dados)
                 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
             );
+
+            
         } catch (\Throwable $e) {
             $this->registrarErro($e);
             $this->fail($e);
@@ -69,7 +78,7 @@ class ExportarRelatorioJob implements ShouldQueue
 
     private function registrarErro(\Throwable $e): void
     {
-        $logPath = storage_path("app/public/{$this->path}/error_{$this->tipo}.log");
+        $logPath = storage_path("app/{$this->path}/error_{$this->tipo}.log");
 
         $log = sprintf(
             "[%s] %s in %s:%d\nTrace:\n%s\n\n",

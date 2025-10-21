@@ -23,7 +23,7 @@ class ControllersCrudTest extends TestCase
     public function setUp(): void
     {
         // Create test data
-        parent::setUP();
+        parent::setUp();
 
         // gera dados de teste para grupo economico
         $this->grupo = GrupoEconomico::factory()->create([

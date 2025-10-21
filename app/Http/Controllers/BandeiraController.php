@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\Bandeira;
 use Illuminate\Http\Request;
-use App\Models\GrupoEconomico;
 
 class BandeiraController extends Controller
 {

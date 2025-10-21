@@ -1,196 +1,267 @@
-<div wire:key="relatorios" style="padding: 20px; color: #f1f5f9;">
-    <h2 style="margin-bottom: 15px;">Relatórios do Sistema</h2>
-
-    {{-- ===========================
+<div
+    wire:key="relatorios"
+    x-data="relatoriosUI(
+        @entangle('dados').live,
+        @entangle('tipoRelatorio'),
+        @entangle('foreignOptions').live
+    )"
+    x-init="init()"
+    class="p-6 bg-[#0c0f16] text-[#f3f4f6] font-[Inter] rounded-xl border border-[#1e2433] shadow-lg"
+>
+    {{-- =========================
         SELETOR DE RELATÓRIO
-    ============================ --}}
-    <div style="margin-bottom: 15px;">
-        <label style="margin-right: 10px;">Selecione o tipo de relatório:</label>
-        <select wire:model.live="tipoRelatorio"
-            style="padding: 6px 10px; border-radius: 6px; background: #1e293b; color: #f1f5f9; border: 1px solid #334155;">
-            <option value="">Selecione...</option>
-            <option value="grupos">Grupos Econômicos</option>
-            <option value="bandeiras">Bandeiras</option>
-            <option value="unidades">Unidades</option>
-            <option value="colaboradores">Colaboradores</option>
-        </select>
-    </div>
+    ========================== --}}
+    <div class="flex flex-wrap items-center justify-between mb-6 gap-4">
+        <div class="flex items-center gap-3 w-full sm:w-auto">
+            <label for="tipoRelatorio" class="text-sm text-[#e8c153] font-semibold">
+                Tipo de Relatório:
+            </label>
+            <select
+                id="tipoRelatorio"
+                x-model="tipoRelatorio"
+                @change="$wire.set('tipoRelatorio', tipoRelatorio); $wire.relatorio()"
+                class="bg-[#1a1f2d] border border-[#2a3044] text-[#f3f4f6] rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#e8c153]"
+            >
+                <option value="">Selecione...</option>
+                <option value="grupos">Grupos Econômicos</option>
+                <option value="bandeiras">Bandeiras</option>
+                <option value="unidades">Unidades</option>
+                <option value="colaboradores">Colaboradores</option>
+            </select>
+        </div>
 
-    {{-- ===========================
-        MENSAGEM DE STATUS
-    ============================ --}}
-    @if($msg)
-    <p style="color: #22c55e; margin-bottom: 10px;">{{ $msg }}</p>
-    @endif
-
-    {{-- ===========================
-        TABELA DE DADOS
-    ============================ --}}
-    @if(!empty($dados) && is_array($dados) && isset($dados[0]) && is_array($dados[0]))
-    <table style="width: 100%; border-collapse: collapse; color:#f8fafc;">
-        <thead>
-            <tr style="background:#1e293b; color:#facc15;">
-                @foreach(array_keys($dados[0]) as $coluna)
-                @continue(str_ends_with($coluna, '_id'))
-                <th style="padding:8px; text-align:left;">
-                    {{ ucfirst(str_replace('_',' ',$coluna)) }}
-                </th>
-                @endforeach
-                <th>Ações</th>
-            </tr>
-        </thead>
-
-        <tbody>
-            @foreach($dados as $i => $linha)
-            @if(is_array($linha))
-            <tr x-data="{ editando: false }" x-bind:class="editando ? 'bg-slate-700' : ''">
-                @foreach($linha as $coluna => $valor)
-                @continue(str_ends_with($coluna, '_id'))
-                <td style="vertical-align: middle; padding:6px;">
-                    {{-- VISUALIZAÇÃO --}}
-                    <div x-show="!editando">
-                        {{ is_array($valor) ? json_encode($valor) : ($valor ?? '—') }}
-                    </div>
-
-                    {{-- EDIÇÃO --}}
-                    <div x-show="editando" x-cloak>
-                        @if($tipoRelatorio === 'bandeiras' && $coluna === 'grupo_economico')
-                        <select wire:model.lazy="dados.{{ $i }}.grupo_economico_id" style="width:100%;">
-                            <option value="">-- Selecione um grupo --</option>
-                            @foreach($foreignOptions ?? [] as $op)
-                            <option value="{{ $op['id'] ?? '' }}">{{ $op['nome'] ?? '—' }}</option>
-                            @endforeach
-                        </select>
-
-                        @elseif($tipoRelatorio === 'unidades' && $coluna === 'bandeira')
-                        <select wire:model.lazy="dados.{{ $i }}.bandeira_id" style="width:100%;">
-                            <option value="">-- Selecione uma bandeira --</option>
-                            @foreach($foreignOptions ?? [] as $op)
-                            <option value="{{ $op['id'] ?? '' }}">{{ $op['nome'] ?? '—' }}</option>
-                            @endforeach
-                        </select>
-
-                        @elseif($tipoRelatorio === 'colaboradores' && $coluna === 'unidade')
-                        <select wire:model.lazy="dados.{{ $i }}.unidade_id" style="width:100%;">
-                            <option value="">-- Selecione uma unidade --</option>
-                            @foreach($foreignOptions ?? [] as $op)
-                            <option value="{{ $op['id'] ?? '' }}">{{ $op['nome'] ?? '—' }}</option>
-                            @endforeach
-                        </select>
-
-                        @elseif(!in_array($coluna, ['id','created_at','updated_at']))
-                        <input type="text"
-                            wire:model.defer="dados.{{ $i }}.{{ $coluna }}"
-                            style="width:100%;">
-                        @else
-                        {{ $valor ?? '—' }}
-                        @endif
-                    </div>
-                </td>
-                @endforeach
-
-                {{-- AÇÕES --}}
-                <td style="white-space:nowrap;">
-                    <div x-show="!editando">
-                        <button @click="editando = true" style="color:#38bdf8;">editar</button>
-                        @if(isset($linha['id']))
-                        <button wire:click.prevent="delete({{ $linha['id'] }})" style="color:red;">excluir</button>
-                        @endif
-                    </div>
-                    <div x-show="editando" x-cloak>
-                        <button wire:click.prevent="saveEdit({{ $i }})" style="color:#22c55e;">salvar</button>
-                        <button @click="editando = false" style="color:#f87171;">cancelar</button>
-                    </div>
-                </td>
-            </tr>
-            @endif
-            @endforeach
-        </tbody>
-    </table>
-    @else
-    <p style="color:#94a3b8; margin-top:10px;">Nenhum dado encontrado.</p>
-    @endif
-
-    {{-- ===========================
-        MODAL DE EXPORTAÇÃO
-    ============================ --}}
-    <div x-data="{ showModal: false }" class="relative">
         <button
-            @click="showModal = true"
-            class="fixed bottom-6 right-6 bg-green-500 hover:bg-green-600 text-white font-semibold rounded-full shadow-lg px-5 py-3"
-            style="z-index: 50;">
-            <i class="fa fa-file-excel mr-1"></i> Exportar
+            @click="$wire.relatorio()"
+            class="bg-[#e8c153] hover:bg-[#f1d071] text-[#0c0f16] font-semibold px-5 py-2 rounded-md shadow-md transition"
+        >
+            Atualizar Relatório
         </button>
+    </div>
 
-        <!-- Modal -->
-        <div
-            x-show="showModal"
-            x-cloak
-            class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-            @keydown.escape.window="showModal = false"
-            @click.self="showModal = false">
+    {{-- =========================
+        FILTROS
+    ========================== --}}
+    <div class="flex flex-wrap items-center justify-between mb-4 gap-3">
+        <div class="flex items-center gap-2">
+            <input
+                type="text"
+                placeholder="Buscar..."
+                x-model.debounce.300ms="busca"
+                class="bg-[#1a1f2d] border border-[#2a3044] text-[#f3f4f6] placeholder-[#9ca3af] rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#e8c153]"
+            />
+        </div>
 
-            <div class="bg-slate-800 text-slate-100 rounded-lg shadow-xl p-6 w-96">
-                <h2 class="text-lg font-semibold mb-4">Exportar Relatórios</h2>
-
-                <p class="text-sm text-slate-400 mb-3">Selecione os relatórios que deseja exportar:</p>
-
-                <div class="flex flex-col gap-2 mb-4">
-                    @foreach(['grupos'=>'Grupos Econômicos','bandeiras'=>'Bandeiras','unidades'=>'Unidades','colaboradores'=>'Colaboradores'] as $tipo => $label)
-                    <label>
-                        <input type="checkbox" wire:model.defer="exportar.{{ $tipo }}"> {{ $label }}
-                    </label>
-                    @endforeach
-                </div>
-
-                <div class="flex justify-end gap-2">
-                    <button @click="showModal = false"
-                        class="bg-slate-700 hover:bg-slate-600 text-sm px-3 py-2 rounded-md">Cancelar</button>
-                    <button
-                        wire:click="confirmarExportacao"
-                        @click="showModal = false"
-                        class="bg-green-500 hover:bg-green-600 text-sm px-3 py-2 rounded-md">
-                        Exportar
-                    </button>
-                </div>
-
-                <div wire:loading wire:target="confirmarExportacao"
-                    class="text-sm text-slate-400 mt-3 text-center">
-                    Gerando relatórios...
-                </div>
-            </div>
+        <div class="flex items-center gap-3">
+            <button
+                @click="toggleSort('id')"
+                :class="ordemCampo === 'id' ? 'ring-2 ring-[#e8c153] text-[#e8c153]' : ''"
+                class="px-3 py-2 rounded-md bg-[#121623] border border-[#2a3044] text-[#f3f4f6] hover:text-[#e8c153] transition"
+            >
+                Ordenar por ID
+            </button>
+            <button
+                @click="toggleSort('nome')"
+                :class="ordemCampo === 'nome' ? 'ring-2 ring-[#e8c153] text-[#e8c153]' : ''"
+                class="px-3 py-2 rounded-md bg-[#121623] border border-[#2a3044] text-[#f3f4f6] hover:text-[#e8c153] transition"
+            >
+                Ordenar A–Z
+            </button>
         </div>
     </div>
-    {{-- ===========================
-     STATUS E DOWNLOAD
-=========================== --}}
-    <div class="mt-6 text-center">
 
-        {{-- Mensagem de status --}}
-        @if($msg)
-        <p class="text-sm mt-2 text-green-400">{{ $msg }}</p>
-        @endif
+    {{-- =========================
+        TABELA
+    ========================== --}}
+    <div class="overflow-x-auto border border-[#1e2433] rounded-lg shadow-inner">
+        <table class="w-full text-sm text-left border-collapse text-[#f3f4f6]">
+            <thead class="bg-[#121623] text-[#e8c153] uppercase text-xs tracking-wider border-b border-[#1e2433]">
+                <tr>
+                    <template x-for="col in colunas" :key="col">
+                        <th class="px-4 py-3 text-center" x-text="col"></th>
+                    </template>
+                    <th class="px-4 py-3 text-center">Ações</th>
+                </tr>
+            </thead>
 
-        {{-- Link de download quando o arquivo for gerado --}}
-        @if($arquivoGerado)
-        <div class="mt-4">
-            <a href="{{ $arquivoGerado }}"
-                download
-                wire:click="marcarComoBaixado"
-                class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md shadow-md transition">
-                 <span>Baixar Relatório Gerado</span>
-            </a>
-        </div>
-        @endif
+            <tbody>
+                <template x-if="rows().length === 0">
+                    <tr>
+                        <td colspan="999" class="text-center py-6 text-gray-400">
+                            Nenhum dado encontrado.
+                        </td>
+                    </tr>
+                </template>
 
-        {{-- Atualiza automaticamente a cada 5 segundos enquanto ainda não estiver concluído --}}
-        @if($pollingAtivo)
-        <div wire:poll.5s="downloadUltimoExcel" wire:loading.remove></div>
-        @endif
+                <template x-for="(linha, index) in rows()" :key="linha.id ?? index">
+                    <tr
+                        class="border-b border-[#1e2433] hover:bg-[#151822] transition-colors"
+                        x-data="{ editando: false }"
+                    >
+                        {{-- Campos --}}
+                        <template x-for="col in colunas" :key="col">
+                            <td class="px-4 py-2 text-center">
+                                {{-- ID --}}
+                                <template x-if="col === 'id'">
+                                    <span x-text="linha[col]" class="text-gray-400"></span>
+                                </template>
 
-        {{-- Indicador enquanto gera --}}
-        <div wire:loading wire:target="confirmarExportacao" class="text-slate-400 text-sm mt-3">
-             Gerando relatórios, aguarde...
-        </div>
+                                {{-- Foreign Key --}}
+                                <template x-if="col.endsWith('_id')">
+                                    <div>
+                                        <span
+                                            x-show="!editando"
+                                            x-text="nomeFK(linha, col)"
+                                            class="text-[#f3f4f6]"
+                                        ></span>
+                                        <select
+                                            x-show="editando"
+                                            x-model="linha[col]"
+                                            @change="syncFK(linha, col)"
+                                            class="bg-[#0c0f16] border border-[#2a3044] rounded-md text-[#f3f4f6] px-2 py-1 w-full"
+                                        >
+                                            <option value="">-- Selecione --</option>
+                                            <template x-for="opt in foreignOptions" :key="opt.id">
+                                                <option :value="opt.id" x-text="opt.nome"></option>
+                                            </template>
+                                        </select>
+                                    </div>
+                                </template>
+
+                                {{-- Campos normais --}}
+                                <template x-if="!col.endsWith('_id') && col !== 'id'">
+                                    <div>
+                                        <span
+                                            x-show="!editando"
+                                            x-text="linha[col]"
+                                            class="text-[#f3f4f6]"
+                                        ></span>
+                                        <input
+                                            x-show="editando"
+                                            type="text"
+                                            x-model="linha[col]"
+                                            class="bg-[#0c0f16] border border-[#2a3044] rounded-md px-2 py-1 w-full text-[#f3f4f6]"
+                                        />
+                                    </div>
+                                </template>
+                            </td>
+                        </template>
+
+                        {{-- Ações --}}
+                        <td class="px-4 py-2 text-center whitespace-nowrap">
+                            <template x-if="!editando">
+                                <div>
+                                    <button
+                                        @click="editando = true"
+                                        class="text-sky-400 hover:text-sky-300 mx-1 font-medium"
+                                    >
+                                        editar
+                                    </button>
+                                    <button
+                                        @click="$wire.delete(linha.id)"
+                                        class="text-red-400 hover:text-red-300 mx-1 font-medium"
+                                    >
+                                        excluir
+                                    </button>
+                                </div>
+                            </template>
+
+                            <template x-if="editando">
+                                <div>
+                                    <button
+                                        @click="$wire.saveEdit(index); editando=false"
+                                        class="text-green-400 hover:text-green-300 mx-1 font-medium"
+                                    >
+                                        salvar
+                                    </button>
+                                    <button
+                                        @click="editando=false"
+                                        class="text-gray-400 hover:text-gray-300 mx-1 font-medium"
+                                    >
+                                        cancelar
+                                    </button>
+                                </div>
+                            </template>
+                        </td>
+                    </tr>
+                </template>
+            </tbody>
+        </table>
     </div>
 </div>
+
+{{-- =========================
+    SCRIPT ALPINE ORIGINAL
+========================= --}}
+<script>
+    function relatoriosUI(dadosLive, tipoRelatorioLive, foreignOpts) {
+        return {
+            dados: dadosLive || [],
+            tipoRelatorio: tipoRelatorioLive,
+            foreignOptions: foreignOpts || [],
+            busca: '',
+            ordemCampo: 'id',
+            ordemAsc: true,
+            colunas: [],
+
+            init() {
+                this.$watch('dados', v => {
+                    if (Array.isArray(v) && v.length)
+                        this.colunas = Object.keys(v[0]);
+                });
+                if (Array.isArray(this.dados) && this.dados.length)
+                    this.colunas = Object.keys(this.dados[0]);
+            },
+
+            nomeFK(linha, campo) {
+                const opt = this.foreignOptions.find(o => String(o.id) === String(linha[campo]));
+                return opt ? opt.nome : '—';
+            },
+
+            syncFK(linha, campo) {
+                const opt = this.foreignOptions.find(o => String(o.id) === String(linha[campo]));
+                if (!opt) return;
+                const nomeCampo = campo.replace('_id', '');
+                if (linha[nomeCampo] !== undefined) linha[nomeCampo] = opt.nome;
+            },
+
+            toggleSort(campo) {
+                if (this.ordemCampo === campo) this.ordemAsc = !this.ordemAsc;
+                else {
+                    this.ordemCampo = campo;
+                    this.ordemAsc = true;
+                }
+            },
+
+            rows() {
+                let out = Array.isArray(this.dados) ? [...this.dados] : [];
+
+                // Filtro de texto
+                if (this.busca.trim()) {
+                    const termo = this.busca.toLowerCase();
+                    out = out.filter(l =>
+                        Object.values(l).some(v =>
+                            String(v ?? '').toLowerCase().includes(termo)
+                        )
+                    );
+                }
+
+                // Ordenação
+                const campo = this.ordemCampo;
+                out.sort((a, b) => {
+                    let A = a[campo],
+                        B = b[campo];
+                    if (campo === 'id') {
+                        A = Number(A ?? 0);
+                        B = Number(B ?? 0);
+                        return this.ordemAsc ? A - B : B - A;
+                    } else {
+                        A = String(A ?? '').toLowerCase();
+                        B = String(B ?? '').toLowerCase();
+                        return this.ordemAsc ? A.localeCompare(B) : B.localeCompare(A);
+                    }
+                });
+                return out;
+            },
+        };
+    }
+</script>
