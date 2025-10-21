@@ -1,87 +1,146 @@
 <?php
 
-namespace App\Services;
+namespace App\Livewire\Pages;
 
-use PhpOffice\PhpSpreadsheet\Spreadsheet;
-use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
-use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
-use App\Traits\RelatorioExporter;
+use App\Jobs\ExportarRelatorioJob;
+use App\Models\{Bandeira, Colaborador, GrupoEconomico, Unidade};
+use Livewire\Component;
+use App\Traits\{
+    ControllerInvoker,
+    RelatorioFormatter,
+    RelatorioControllerResolver,
+    RelatorioExporter,
+    RelatorioManager
+};
 
-class ExportacaoService
+class RelatoriosComponent extends Component
 {
-    use RelatorioExporter;
+    use ControllerInvoker, RelatorioFormatter, RelatorioControllerResolver, RelatorioExporter, RelatorioManager;
 
-    public function gerar(array $dados, string $tipo, string $path)
+    public $tipoRelatorio = 'grupos';
+    public $dados = [];
+    public $msg;
+    public $editIndex = null;
+    public $foreignOptions;
+    public $exportar = [
+        'grupos' => false,
+        'bandeiras' => false,
+        'unidades' => false,
+        'colaboradores' => false,
+    ];
+    public $dadosFormatados;
+    public $arquivoGerado;
+    public $exportConcluido = false;
+    public $pollingAtivo = false;
+    public $pollingTentativas = 0;
+    public $pollingMaxTentativas = 10; // ✅ máximo de 10 verificações (~200s se for a cada 20s)
+    public $path = 'exports'; // ✅ caminho público de exportação
+
+    public function mount()
     {
-        $spreadsheet = new Spreadsheet();
-        $spreadsheet->removeSheetByIndex(0);
-
-        foreach ($this->prepareSheets($dados, $tipo) as $sheetName => $content) {
-            $nomeAba = $this->sanitizeSheetName($sheetName);
-            $sheet = $spreadsheet->createSheet();
-            $sheet->setTitle($nomeAba);
-
-            $this->preencherAba($sheet, $content);
-        }
-
-        $exportDir = dirname($path);
-        if (!is_dir($exportDir)) {
-            mkdir($exportDir, 0777, true);
-        }
-
-        $writer = new Xlsx($spreadsheet);
-        $writer->save($path);
-
-        $spreadsheet->disconnectWorksheets();
-        unset($spreadsheet);
-
-        return $path;
+        $this->relatorio();
+        $this->foreignOptions = $this->getForeignOptions($this->tipoRelatorio);
     }
 
-    private function preencherAba($sheet, array $linhas)
+    public function updatedTipoRelatorio()
     {
-        if (empty($linhas)) {
-            $sheet->setCellValue('A1', 'sem dados disponiveis');
+        $this->relatorio();
+        $this->foreignOptions = $this->getForeignOptions($this->tipoRelatorio);
+    }
+
+    public function confirmarExportacao()
+    {
+        $selecionados = array_keys(array_filter($this->exportar));
+
+        if (empty($selecionados)) {
+            $this->msg = 'Selecione ao menos uma opção para poder exportar.';
+            return;
         }
 
-        $headers = array_keys($linhas[0]);
+        $this->exportConcluido = false;
+        $this->pollingAtivo = true;
+        $this->pollingTentativas = 0;
+        $this->dadosFormatados = [];
 
-        foreach ($headers as $i => $col) {
-            $colLetter = Coordinate::stringFromColumnIndex($i + 1);
-            $cell = "{$colLetter}1";
-            $sheet->setCellValue($cell, $col);
+        foreach ($selecionados as $tipo) {
+            try {
+                $controllerClass = $this->getControllerByType($tipo);
+                if (!$controllerClass) {
+                    $this->msg = 'Controller não encontrado para o tipo selecionado';
+                    continue;
+                }
 
-            // estilo cabeçalho
-            $sheet->getStyle($cell)->getAlignment()->setHorizontal('center');
-            $sheet->getStyle($cell)->getAlignment()->setVertical('center');
-        }
+                $dados = match ($tipo) {
+                    'grupos' => GrupoEconomico::all()->toArray(),
+                    'bandeiras' => Bandeira::with('grupoEconomico')->get()->toArray(),
+                    'unidades' => Unidade::with('bandeira')->get()->toArray(),
+                    'colaboradores' => Colaborador::with('unidade')->get()->toArray(),
+                    default => []
+                };
 
-        foreach ($linhas as $r => $linha) {
-            foreach ($headers as $i => $col) {
-                $colLetter = Coordinate::stringFromColumnIndex($i + 1);
-                $sheet->setCellValue("{$colLetter}" . ($r + 2), $linha[$col] ?? '');
+                if (empty($dados)) {
+                    $this->msg = "Nenhum dado encontrado para {$tipo}";
+                    continue;
+                }
+
+                $this->dadosFormatados[$tipo] = $this->formatarPorTipo($tipo, $dados);
+            } catch (\Throwable $e) {
+                $this->msg = "Falha ao processar {$tipo}: " . $e->getMessage();
             }
         }
 
-        foreach (range(1, count($headers)) as $i) {
-            $colLetter = Coordinate::stringFromColumnIndex($i);
+        if (empty($this->dadosFormatados)) {
+            $this->msg = 'Não há dados para exportar.';
+            return;
+        }
+
+        // Cria diretório com permissões corretas
+        $exportPath = storage_path("app/public/{$this->path}");
+        if (!is_dir($exportPath)) {
+            mkdir($exportPath, 0777, true);
+        }
+
+        // Dispara o job assíncrono
+        ExportarRelatorioJob::dispatch($this->dadosFormatados, 'relatorios_completos', $this->path);
+
+        $this->msg = 'Exportação iniciada. Aguarde o processamento...';
+    }
+
+    public function verificarExportacao()
+    {
+        if (!$this->pollingAtivo) return;
+
+        $this->pollingTentativas++;
+
+        // Interrompe após o máximo
+        if ($this->pollingTentativas >= $this->pollingMaxTentativas) {
+            $this->pollingAtivo = false;
+            $this->msg = 'Tempo limite atingido. A exportação demorou demais ou falhou.';
+            return;
+        }
+
+        // Verifica se há arquivos prontos
+        $arquivos = glob(storage_path("app/public/{$this->path}/relatorios_completos_*.xlsx"));
+
+        if (!empty($arquivos)) {
+            $ultimo = collect($arquivos)->sortDesc()->first();
+            $nomeArquivo = basename($ultimo);
+            $this->arquivoGerado = asset("storage/{$this->path}/{$nomeArquivo}");
+            $this->msg = 'Relatório pronto para download.';
+            $this->exportConcluido = true;
+            $this->pollingAtivo = false;
         }
     }
 
-    private function prepareSheets(array $dados, string $tipo)
+    public function marcarComoBaixado()
     {
-        return $this->isMultisheet($dados) ? $dados : [$tipo => $dados];
+        $this->msg = 'Relatório baixado com sucesso.';
+        $this->exportConcluido = true;
+        $this->pollingAtivo = false;
     }
 
-    private function isMultisheet(array $dados)
+    public function render()
     {
-        return !empty($dados) && is_string(array_key_first($dados));
-    }
-
-    private function sanitizeSheetName(string $name)
-    {
-        $name = preg_replace('/[\[\]\*\/\\\?\:]/', '', $name);
-        $name = substr($name, 0, 31);
-        return ucfirst($name ?: 'Relatorio');
+        return view('livewire.pages.relatorios-component');
     }
 }

@@ -39,15 +39,16 @@
     </div>
 
     {{-- =========================
-        FILTROS
+        FILTROS + EXPORTAÇÃO
     ========================== --}}
     <div class="flex flex-wrap items-center justify-between mb-4 gap-3">
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 flex-1">
             <input
                 type="text"
                 placeholder="Buscar..."
                 x-model.debounce.300ms="busca"
-                class="bg-[#1a1f2d] border border-[#2a3044] text-[#f3f4f6] placeholder-[#9ca3af] rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#e8c153]"
+                class="bg-[#1a1f2d] border border-[#2a3044] text-[#f3f4f6] placeholder-[#9ca3af] 
+                       rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#e8c153] w-full sm:w-auto"
             />
         </div>
 
@@ -59,12 +60,21 @@
             >
                 Ordenar por ID
             </button>
+
             <button
                 @click="toggleSort('nome')"
                 :class="ordemCampo === 'nome' ? 'ring-2 ring-[#e8c153] text-[#e8c153]' : ''"
                 class="px-3 py-2 rounded-md bg-[#121623] border border-[#2a3044] text-[#f3f4f6] hover:text-[#e8c153] transition"
             >
                 Ordenar A–Z
+            </button>
+
+            {{-- BOTÃO ABRIR MODAL EXPORTAÇÃO --}}
+            <button
+                @click="abrirModalExportacao = true"
+                class="bg-[#e8c153] hover:bg-[#f1d071] text-[#0c0f16] font-semibold px-5 py-2 rounded-md shadow-md transition"
+            >
+                Exportar Excel
             </button>
         </div>
     </div>
@@ -97,22 +107,15 @@
                         class="border-b border-[#1e2433] hover:bg-[#151822] transition-colors"
                         x-data="{ editando: false }"
                     >
-                        {{-- Campos --}}
                         <template x-for="col in colunas" :key="col">
                             <td class="px-4 py-2 text-center">
-                                {{-- ID --}}
                                 <template x-if="col === 'id'">
                                     <span x-text="linha[col]" class="text-gray-400"></span>
                                 </template>
 
-                                {{-- Foreign Key --}}
                                 <template x-if="col.endsWith('_id')">
                                     <div>
-                                        <span
-                                            x-show="!editando"
-                                            x-text="nomeFK(linha, col)"
-                                            class="text-[#f3f4f6]"
-                                        ></span>
+                                        <span x-show="!editando" x-text="nomeFK(linha, col)" class="text-[#f3f4f6]"></span>
                                         <select
                                             x-show="editando"
                                             x-model="linha[col]"
@@ -127,14 +130,9 @@
                                     </div>
                                 </template>
 
-                                {{-- Campos normais --}}
                                 <template x-if="!col.endsWith('_id') && col !== 'id'">
                                     <div>
-                                        <span
-                                            x-show="!editando"
-                                            x-text="linha[col]"
-                                            class="text-[#f3f4f6]"
-                                        ></span>
+                                        <span x-show="!editando" x-text="linha[col]" class="text-[#f3f4f6]"></span>
                                         <input
                                             x-show="editando"
                                             type="text"
@@ -146,20 +144,13 @@
                             </td>
                         </template>
 
-                        {{-- Ações --}}
                         <td class="px-4 py-2 text-center whitespace-nowrap">
                             <template x-if="!editando">
                                 <div>
-                                    <button
-                                        @click="editando = true"
-                                        class="text-sky-400 hover:text-sky-300 mx-1 font-medium"
-                                    >
+                                    <button @click="editando = true" class="text-sky-400 hover:text-sky-300 mx-1 font-medium">
                                         editar
                                     </button>
-                                    <button
-                                        @click="$wire.delete(linha.id)"
-                                        class="text-red-400 hover:text-red-300 mx-1 font-medium"
-                                    >
+                                    <button @click="$wire.delete(linha.id)" class="text-red-400 hover:text-red-300 mx-1 font-medium">
                                         excluir
                                     </button>
                                 </div>
@@ -167,16 +158,10 @@
 
                             <template x-if="editando">
                                 <div>
-                                    <button
-                                        @click="$wire.saveEdit(index); editando=false"
-                                        class="text-green-400 hover:text-green-300 mx-1 font-medium"
-                                    >
+                                    <button @click="$wire.saveEdit(index); editando=false" class="text-green-400 hover:text-green-300 mx-1 font-medium">
                                         salvar
                                     </button>
-                                    <button
-                                        @click="editando=false"
-                                        class="text-gray-400 hover:text-gray-300 mx-1 font-medium"
-                                    >
+                                    <button @click="editando=false" class="text-gray-400 hover:text-gray-300 mx-1 font-medium">
                                         cancelar
                                     </button>
                                 </div>
@@ -187,10 +172,68 @@
             </tbody>
         </table>
     </div>
+
+    {{-- MODAL EXPORTAÇÃO --}}
+    <template x-if="abrirModalExportacao">
+        <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+            <div class="bg-[#0c0f16] border border-[#2a3044] rounded-xl p-6 w-[90%] sm:w-[450px] shadow-lg text-[#f3f4f6]">
+                <h3 class="text-lg font-semibold text-[#e8c153] mb-4">
+                    Selecionar tipos de relatório para exportar
+                </h3>
+
+                <div class="space-y-3 mb-5">
+                    <label class="flex items-center gap-2">
+                        <input type="checkbox" wire:model="exportar.grupos" class="accent-[#e8c153]">
+                        Grupos Econômicos
+                    </label>
+                    <label class="flex items-center gap-2">
+                        <input type="checkbox" wire:model="exportar.bandeiras" class="accent-[#e8c153]">
+                        Bandeiras
+                    </label>
+                    <label class="flex items-center gap-2">
+                        <input type="checkbox" wire:model="exportar.unidades" class="accent-[#e8c153]">
+                        Unidades
+                    </label>
+                    <label class="flex items-center gap-2">
+                        <input type="checkbox" wire:model="exportar.colaboradores" class="accent-[#e8c153]">
+                        Colaboradores
+                    </label>
+                </div>
+
+                <div class="flex justify-end gap-3">
+                    <button @click="abrirModalExportacao = false"
+                        class="px-4 py-2 bg-[#121623] border border-[#2a3044] rounded-md hover:text-[#e8c153] transition">
+                        Cancelar
+                    </button>
+                    <button wire:click="confirmarExportacao"
+                        class="px-4 py-2 bg-[#e8c153] hover:bg-[#f1d071] text-[#0c0f16] font-semibold rounded-md transition">
+                        Exportar
+                    </button>
+                </div>
+
+                @if ($msg)
+                    <p class="text-sm text-gray-400 mt-3">{{ $msg }}</p>
+                @endif
+            </div>
+        </div>
+    </template>
+
+    {{-- Polling para verificar exportação --}}
+    @if ($pollingAtivo)
+        <div wire:poll.10s="verificarExportacao" class="text-sm text-[#e8c153] mt-3">
+            Verificando exportação...
+        </div>
+    @endif
+
+    @if ($exportConcluido && $arquivoGerado)
+        <div class="mt-3 text-sm text-[#e8c153]">
+            Exportação concluída! <a href="{{ $arquivoGerado }}" target="_blank" class="underline text-sky-400">Baixar Excel</a>
+        </div>
+    @endif
 </div>
 
 {{-- =========================
-    SCRIPT ALPINE ORIGINAL
+    SCRIPT ALPINE
 ========================= --}}
 <script>
     function relatoriosUI(dadosLive, tipoRelatorioLive, foreignOpts) {
@@ -202,6 +245,7 @@
             ordemCampo: 'id',
             ordemAsc: true,
             colunas: [],
+            abrirModalExportacao: false,
 
             init() {
                 this.$watch('dados', v => {
@@ -235,7 +279,6 @@
             rows() {
                 let out = Array.isArray(this.dados) ? [...this.dados] : [];
 
-                // Filtro de texto
                 if (this.busca.trim()) {
                     const termo = this.busca.toLowerCase();
                     out = out.filter(l =>
@@ -245,20 +288,13 @@
                     );
                 }
 
-                // Ordenação
                 const campo = this.ordemCampo;
                 out.sort((a, b) => {
-                    let A = a[campo],
-                        B = b[campo];
-                    if (campo === 'id') {
-                        A = Number(A ?? 0);
-                        B = Number(B ?? 0);
-                        return this.ordemAsc ? A - B : B - A;
-                    } else {
-                        A = String(A ?? '').toLowerCase();
-                        B = String(B ?? '').toLowerCase();
-                        return this.ordemAsc ? A.localeCompare(B) : B.localeCompare(A);
-                    }
+                    let A = a[campo], B = b[campo];
+                    if (campo === 'id') return this.ordemAsc ? A - B : B - A;
+                    A = String(A ?? '').toLowerCase();
+                    B = String(B ?? '').toLowerCase();
+                    return this.ordemAsc ? A.localeCompare(B) : B.localeCompare(A);
                 });
                 return out;
             },

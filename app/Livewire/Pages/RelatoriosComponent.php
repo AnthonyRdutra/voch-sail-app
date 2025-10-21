@@ -3,12 +3,15 @@
 namespace App\Livewire\Pages;
 
 use App\Jobs\ExportarRelatorioJob;
-use App\Models\Bandeira;
-use App\Models\Colaborador;
-use App\Models\GrupoEconomico;
-use App\Models\Unidade;
+use App\Models\{Bandeira, Colaborador, GrupoEconomico, Unidade};
 use Livewire\Component;
-use App\Traits\{ControllerInvoker, RelatorioFormatter, RelatorioControllerResolver, RelatorioExporter, RelatorioManager};
+use App\Traits\{
+    ControllerInvoker,
+    RelatorioFormatter,
+    RelatorioControllerResolver,
+    RelatorioExporter,
+    RelatorioManager
+};
 
 class RelatoriosComponent extends Component
 {
@@ -27,8 +30,11 @@ class RelatoriosComponent extends Component
     ];
     public $dadosFormatados;
     public $arquivoGerado;
-    public $exportConcluido;
+    public $exportConcluido = false;
     public $pollingAtivo = false;
+    public $pollingTentativas = 0;
+    public $pollingMaxTentativas = 10;
+    public $path = 'exports';
 
     public function mount()
     {
@@ -44,15 +50,16 @@ class RelatoriosComponent extends Component
 
     public function confirmarExportacao()
     {
-
         $selecionados = array_keys(array_filter($this->exportar));
 
         if (empty($selecionados)) {
-            $this->msg = 'selecione ao menos uma opção para poder exportar.';
+            $this->msg = 'Selecione ao menos uma opção para poder exportar.';
             return;
         }
+
         $this->exportConcluido = false;
         $this->pollingAtivo = true;
+        $this->pollingTentativas = 0;
         $this->dadosFormatados = [];
 
         foreach ($selecionados as $tipo) {
@@ -84,39 +91,50 @@ class RelatoriosComponent extends Component
 
         if (empty($this->dadosFormatados)) {
             $this->msg = 'Não há dados para exportar.';
+            return;
         }
 
+        // Cria diretório com permissões corretas
         $exportPath = storage_path("app/public/{$this->path}");
         if (!is_dir($exportPath)) {
             mkdir($exportPath, 0777, true);
         }
 
-        $tipoBase = 'relatorios_completos';
-        ExportarRelatorioJob::dispatch($this->dadosFormatados, $tipoBase, 'exports');
+        // Dispara o job assíncrono
+        ExportarRelatorioJob::dispatch($this->dadosFormatados, 'relatorios_completos', $this->path);
 
-        $this->msg = 'Exportação iniciada';
+        $this->msg = 'Exportação iniciada. Aguarde o processamento...';
     }
 
-    public function downloadUltimoExcel()
+    public function verificarExportacao()
     {
-        $arquivos = glob(storage_path('app/exports/public/relatorios_completos_*.xlsx'));
-        if (empty($arquivos)) {
-            $this->msg = 'Nenhum arquivo de relatório encontrado';
+        if (!$this->pollingAtivo) return;
+
+        $this->pollingTentativas++;
+
+        // Interrompe após o máximo
+        if ($this->pollingTentativas >= $this->pollingMaxTentativas) {
+            $this->pollingAtivo = false;
+            $this->msg = 'Tempo limite atingido. A exportação demorou demais ou falhou.';
+            return;
         }
 
-        $ultimo = collect($arquivos)->sortDesc()->first();
-        $nomeArquivo = basename($ultimo);
+        // Verifica se há arquivos prontos
+        $arquivos = glob(storage_path("app/public/{$this->path}/relatorios_completos_*.xlsx"));
 
-        $this->arquivoGerado = asset('storage/exports/' . $nomeArquivo);
-        $this->msg = 'arquivo disponivel, clique para baixar';
-
-        $this->exportConcluido = true;
-        $this->pollingAtivo = false;
+        if (!empty($arquivos)) {
+            $ultimo = collect($arquivos)->sortDesc()->first();
+            $nomeArquivo = basename($ultimo);
+            $this->arquivoGerado = asset("storage/{$this->path}/{$nomeArquivo}");
+            $this->msg = 'Relatório pronto para download.';
+            $this->exportConcluido = true;
+            $this->pollingAtivo = false;
+        }
     }
 
     public function marcarComoBaixado()
     {
-        $this->msg = 'Relatorio baixado com sucesso';
+        $this->msg = 'Relatório baixado com sucesso.';
         $this->exportConcluido = true;
         $this->pollingAtivo = false;
     }

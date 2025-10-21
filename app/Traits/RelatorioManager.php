@@ -18,32 +18,92 @@ trait RelatorioManager
      *   GERENCIAMENTO DE RELATÓRIOS
      * ==============================
      */
+
+
     public function relatorio()
     {
         try {
-            $controller = $this->getController();
+            $controllerClass = $this->getControllerByType($this->tipoRelatorio);
 
-            if (!$controller) {
+            if (!$controllerClass) {
                 $this->msg = 'Tipo de relatório inválido';
                 $this->dados = [];
                 return;
             }
 
-            $response = $this->callController($controller, 'index');
-            $payload = $response->getData(true);
-            $items = $payload['data'] ?? $payload;
+            Log::debug("🔹 [Relatorio] Iniciando geração para tipo: {$this->tipoRelatorio}");
+            Log::debug("🔹 [Relatorio] Controller: {$controllerClass}");
 
-            if (isset($items['id'])) $items = [$items];
+            // ================================
+            // 1️⃣ CHAMADA DO CONTROLLER
+            // ================================
+            $response = $this->callController($controllerClass, 'index');
 
+            // Padroniza o retorno (JsonResponse, array, View, etc.)
+            if (is_object($response) && method_exists($response, 'getData')) {
+                $payload = $response->getData(true);
+            } elseif (is_array($response)) {
+                $payload = $response;
+            } elseif (is_object($response) && property_exists($response, 'original')) {
+                $payload = $response->original;
+            } else {
+                $payload = (array) $response;
+            }
+
+            Log::debug('🔸 [Relatorio] Payload bruto recebido:', ['payload' => $payload]);
+
+            if (isset($payload['data'])) {
+                $items = $payload['data'];
+            } elseif (isset($payload['payload'])) {
+                $items = $payload['payload'];
+            } else {
+                $items = $payload;
+            }
+
+            if (!is_array($items)) {
+                $items = json_decode(json_encode($items), true);
+            }
+
+            if (isset($items['id'])) {
+                $items = [$items];
+            }
+
+            Log::debug('🔹 [Relatorio] Itens antes do flatten:', ['items' => $items]);
+
+            // ================================
+            // 2️⃣ ACHATA ARRAYS ANINHADOS
+            // ================================
+            $items = collect($items)->map(function ($item) {
+                if (!is_array($item)) return [];
+                foreach ($item as $key => $value) {
+                    if (is_array($value)) {
+                        foreach ($value as $subKey => $subVal) {
+                            $item["{$key}_{$subKey}"] = $subVal;
+                        }
+                        unset($item[$key]);
+                    }
+                }
+                return $item;
+            })->filter(fn($i) => !empty($i))->values()->toArray();
+
+            Log::debug('🔹 [Relatorio] Itens após flatten:', ['items' => $items]);
+
+            // ================================
+            // 3️⃣ MAPEAMENTO FORMATADO
+            // ================================
             $this->dados = match ($this->tipoRelatorio) {
-                'grupos' => $this->mapGrupos($items),
-                'bandeiras' => $this->mapBandeiras($items),
-                'unidades' => $this->mapUnidades($items),
+                'grupos'        => $this->mapGrupos($items),
+                'bandeiras'     => $this->mapBandeiras($items),
+                'unidades'      => $this->mapUnidades($items),
                 'colaboradores' => $this->mapColaboradores($items),
-                default => [],
+                default         => [],
             };
 
-            // Remove campos duplicados (*_id + campo resolvido)
+            Log::debug("🔸 [Relatorio] Dados após map ({$this->tipoRelatorio}):", ['dados' => $this->dados]);
+
+            // ================================
+            // 4️⃣ REMOVE DUPLICADOS
+            // ================================
             $this->dados = collect($this->dados)->map(function ($item) {
                 $item = (array) $item;
                 return collect($item)->reject(function ($value, $key) use ($item) {
@@ -52,10 +112,18 @@ trait RelatorioManager
                 })->toArray();
             })->values()->toArray();
 
+            Log::debug("✅ [Relatorio] Dados finais formatados:", ['dados' => $this->dados]);
+
             $this->msg = null;
         } catch (\Throwable $e) {
             $this->dados = [];
-            $this->msg = 'Erro: ' . $e->getMessage();
+            $this->msg = 'Erro ao gerar relatório: ' . $e->getMessage();
+
+            Log::error('❌ [Relatorio] Erro ao gerar relatório', [
+                'tipo' => $this->tipoRelatorio,
+                'mensagem' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
         }
     }
 
@@ -156,7 +224,7 @@ trait RelatorioManager
             $this->dados[$index] = $registro->fresh()->toArray();
 
             $this->audit(
-                Auth::user()->name ?? 'Sistema',
+                Auth::user()->name,
                 'update',
                 ucfirst($this->tipoRelatorio),
                 ['antes' => $antes, 'depois' => $dadosEditados]
@@ -218,13 +286,7 @@ trait RelatorioManager
             // Atualiza a tabela local imediata (mais leve que refazer a consulta toda)
             $this->dados = array_values(array_filter($this->dados, fn($item) => ($item['id'] ?? null) != $id));
 
-            $this->audit(
-                Auth::user()->name ?? 'Sistema',
-                'delete',
-                ucfirst($this->tipoRelatorio),
-                $dadosAntes
-            );
-
+            $this->audit(Auth::user()->name, 'delete', $this->tipo, $registro);
             $this->msg = 'Registro excluído com sucesso.';
         } catch (\Throwable $e) {
             $this->msg = 'Erro ao excluir: ' . $e->getMessage();
@@ -242,45 +304,64 @@ trait RelatorioManager
      *   EXPORTAÇÃO DE RELATÓRIOS
      * ==============================
      */
-    public function exportarAtual()
+    public function confirmarExportacao()
     {
-        $tipo = $this->tipoRelatorio;
-
-        if (!isset($this->exportar[$tipo])) {
-            $this->msg = 'Tipo de exportação inválido.';
-            return;
-        }
-
-        if (empty($this->dados)) {
-            $this->msg = 'Nenhum dado disponível para exportação.';
-            return;
-        }
-
-        $this->msg = 'Gerando relatório...';
+        $this->msg = null;
+        $this->arquivoGerado = null;
         $this->exportConcluido = false;
-        $this->pollingAtivo = true;
+        $this->pollingAtivo = false;
 
-        // Caminho e nome do arquivo
-        $timestamp = now()->format('Ymd_His');
-        $this->arquivoGerado = "exports/relatorios_completos_{$tipo}_{$timestamp}.xlsx";
+        try {
+            $tipo = $this->tipoRelatorio;
 
-        ExportarRelatorioJob::dispatch(
-            $this->dados,
-            $tipo,
-            storage_path("app/{$this->arquivoGerado}")
-        );
+            $dados = match ($tipo) {
+                'grupos' => GrupoEconomico::all()->toArray(),
+                'bandeiras' => Bandeira::with('grupoEconomico')->get()->toArray(),
+                'unidades' => Unidade::with('bandeira')->get()->toArray(),
+                'colaboradores' => Colaborador::with('unidade')->get()->toArray(),
+                default => [],
+            };
+
+            if (empty($dados)) {
+                $this->msg = 'Nenhum dado encontrado para exportar.';
+                return;
+            }
+
+            // Formata de acordo com o tipo
+            $dadosFormatados = $this->formatarPorTipo($tipo, $dados);
+            $this->dadosFormatados = [$tipo => $dadosFormatados];
+
+            // Caminho de exportação
+            $exportPath = storage_path('app/exports');
+            if (!is_dir($exportPath)) {
+                mkdir($exportPath, 0777, true);
+            }
+
+            // Nome base fixo (mantendo compatibilidade com o Job existente)
+            $tipoBase = 'relatorios_completos';
+
+            // Dispara o Job para a fila
+            ExportarRelatorioJob::dispatch($this->dadosFormatados, $tipoBase, 'exports');
+
+            $this->msg = 'Exportação iniciada, o arquivo será gerado em alguns segundos...';
+            $this->pollingAtivo = true;
+        } catch (\Throwable $e) {
+            $this->msg = 'Erro ao iniciar exportação: ' . $e->getMessage();
+        }
     }
 
     public function verificarExportacao()
     {
-        if (!$this->pollingAtivo || !$this->arquivoGerado) {
-            return;
-        }
+        $arquivos = glob(storage_path('app/exports/relatorios_completos_*.xlsx'));
 
-        if (Storage::exists($this->arquivoGerado)) {
+        if (!empty($arquivos)) {
+            $ultimo = collect($arquivos)->sortDesc()->first();
+            $nomeArquivo = basename($ultimo);
+
+            $this->arquivoGerado = asset('storage/exports/' . $nomeArquivo);
+            $this->msg = 'Exportação concluída! Clique para baixar.';
             $this->exportConcluido = true;
             $this->pollingAtivo = false;
-            $this->msg = 'Exportação concluída com sucesso.';
         }
     }
 

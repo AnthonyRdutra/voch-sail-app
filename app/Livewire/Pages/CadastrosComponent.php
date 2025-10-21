@@ -14,7 +14,7 @@ use App\Traits\LogAuditoria;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 
-class CadastroComponent extends Component
+class CadastrosComponent extends Component
 {
     use ControllerInvoker, LogAuditoria;
 
@@ -205,7 +205,7 @@ class CadastroComponent extends Component
 
     public function render()
     {
-        return view('livewire.pages.cadastro-component')
+        return view('livewire.pages.cadastros-component')
             ->layout('layouts.app');
     }
 }

@@ -71,9 +71,9 @@
         <img src="/images/logo-voch.png" alt="VOCH TECH" class="w-8 h-8">
         <div>
           <h1 class="text-lg font-semibold text-[#e8c153] tracking-wide">
-            Painel de Configurações
+            Voch Tech
           </h1>
-          <span class="text-xs text-gray-500">Administração</span>
+          <span class="text-xs text-gray-500">Teste Técnico</span>
         </div>
       </div>
     </header>
@@ -102,7 +102,7 @@
     <section class="scroll-area min-h-[600px] max-h-[800px] overflow-y-auto bg-[#121623] rounded-xl p-8">
       <template x-if="tab==='cadastros'">
         <div class="pb-6">
-          <livewire:pages.cadastro-component />
+          <livewire:pages.cadastros-component />
         </div>
       </template>
 
@@ -114,7 +114,7 @@
 
       <template x-if="tab==='auditoria'">
         <div class="h-full flex items-center justify-center text-gray-400 italic">
-          Módulo de auditoria em desenvolvimento...
+          <livewire:pages.auditoria-component />
         </div>
       </template>
     </section>
