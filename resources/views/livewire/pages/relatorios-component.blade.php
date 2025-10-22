@@ -68,7 +68,7 @@
             <tbody>
                 @forelse ($dados as $index => $linha)
                 @php
-                // Normaliza as chaves e remove arrays aninhados
+                // Normaliza e remove arrays aninhados
                 $linha = collect($linha)
                 ->map(function ($v) {
                 if (is_array($v)) {
@@ -77,51 +77,53 @@
                 return $v;
                 })
                 ->toArray();
-                $linha = array_change_key_case($linha, CASE_UPPER);
+
+                $linha = array_change_key_case($linha, CASE_LOWER);
+                $idLinha = $linha['id'] ?? null;
                 @endphp
 
                 <tr class="border-b border-[#1e2433] hover:bg-[#151822] transition-colors"
-                    x-data="{ editando: false }">
+                    x-data="{ editando: false }"
+                    wire:key="linha-{{ $idLinha ?? $index }}">
 
                     {{-- COLUNAS --}}
                     @foreach ($linha as $campo => $valor)
                     @php
-                    $campoBase = str_replace('_ID', '', $campo);
-                    $temFK = array_key_exists($campoBase . '_ID', $linha);
+                    $isId = strtolower($campo) === 'id';
+                    $isTimestamp = in_array($campo, ['created_at', 'updated_at', 'data_criacao', 'ultima_atualizacao']);
+                    $isForeignKey = str_ends_with($campo, '_id');
                     @endphp
 
-                    {{-- OCULTA NOME DA FK QUANDO EDITANDO --}}
-                    @if ($temFK && $campo === $campoBase)
-                    <td class="px-4 py-2 text-center text-gray-300" x-show="!editando">
-                        {{ $valor }}
-                    </td>
-                    @continue
-                    @endif
-
                     <td class="px-4 py-2 text-center text-gray-300">
-                        {{-- VISUAL --}}
+                        {{-- VISUALIZAÇÃO --}}
                         <div x-show="!editando">
+                            @if ($isId)
+                            <span class="text-gray-500 text-xs">{{ $valor }}</span>
+                            @else
                             {{ $valor }}
+                            @endif
                         </div>
 
                         {{-- EDIÇÃO --}}
                         <div x-show="editando" x-cloak>
-                            @if (str_ends_with(strtolower($campo), '_id') && !empty($foreignOptions))
-                            <select wire:model.defer="dados.{{ $index }}.{{ $campo }}"
-                                class="bg-[#0c0f16] border border-[#2a3044] rounded-md text-[#f3f4f6] px-2 py-1 w-full">
+                            @if ($isForeignKey && !empty($foreignOptions))
+                            <select
+                                wire:model.defer="dados.{{ $index }}.{{ $campo }}"
+                                class="bg-[#0c0f16] border border-[#2a3044] rounded-md text-[#f3f4f6] px-2 py-1 w-full text-sm">
                                 <option value="">-- Selecione --</option>
                                 @foreach ($foreignOptions as $opt)
                                 <option value="{{ $opt['id'] }}">{{ $opt['nome'] }}</option>
                                 @endforeach
                             </select>
-                            @elseif (strtolower($campo) === 'id')
+                            @elseif ($isId)
                             <span class="text-gray-500 text-xs">{{ $valor }}</span>
-                            @elseif (!in_array($campo, ['DATA_CRIACAO', 'ULTIMA_ATUALIZACAO']))
-                            <input type="text"
-                                wire:model.defer="dados.{{ $index }}.{{ $campo }}"
-                                class="bg-[#0c0f16] border border-[#2a3044] rounded-md px-2 py-1 w-full text-[#f3f4f6]" />
+                            @elseif ($isTimestamp)
+                            <span class="text-gray-500 text-xs">{{ $valor }}</span>
                             @else
-                            <span class="text-gray-500 text-xs">{{ $valor }}</span>
+                            <input
+                                type="text"
+                                wire:model.defer="dados.{{ $index }}.{{ $campo }}"
+                                class="bg-[#0c0f16] border border-[#2a3044] rounded-md px-2 py-1 w-full text-[#f3f4f6] text-sm" />
                             @endif
                         </div>
                     </td>
@@ -131,25 +133,33 @@
                     <td class="px-4 py-2 text-center whitespace-nowrap">
                         <template x-if="!editando">
                             <div>
-                                <button @click="editando = true"
-                                    class="text-sky-400 hover:text-sky-300 mx-1 font-medium">
+                                <button
+                                    @click="editando = true"
+                                    class="text-sky-400 hover:text-sky-300 mx-1 font-medium transition">
                                     Editar
                                 </button>
-                                <button wire:click="delete({{ $linha['ID'] ?? 0 }})"
-                                    class="text-red-400 hover:text-red-300 mx-1 font-medium">
-                                    Excluir
+                                <button
+                                    wire:click.stop="delete({{ $idLinha }})"
+                                    wire:loading.attr="disabled"
+                                    wire:target="delete"
+                                    class="text-red-400 hover:text-red-300 mx-1 font-medium transition">
+                                    <span wire:loading.remove wire:target="delete">Excluir</span>
+                                    <span wire:loading wire:target="delete" class="animate-pulse text-[#e8c153]">Excluindo...</span>
                                 </button>
                             </div>
                         </template>
 
                         <template x-if="editando">
                             <div>
-                                <button wire:click="saveEdit({{ $linha['ID'] ?? 0 }}); editando=false"
-                                    class="text-green-400 hover:text-green-300 mx-1 font-medium">
+                                <button
+                                    wire:click="saveEdit({{ $idLinha }}); editando=false"
+                                    wire:loading.attr="disabled"
+                                    class="text-green-400 hover:text-green-300 mx-1 font-medium transition">
                                     Salvar
                                 </button>
-                                <button @click="editando=false"
-                                    class="text-gray-400 hover:text-gray-300 mx-1 font-medium">
+                                <button
+                                    @click="editando=false"
+                                    class="text-gray-400 hover:text-gray-300 mx-1 font-medium transition">
                                     Cancelar
                                 </button>
                             </div>

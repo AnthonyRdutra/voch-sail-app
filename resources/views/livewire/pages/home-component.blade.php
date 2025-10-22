@@ -17,7 +17,7 @@
         box-shadow:inset -4px 0 12px rgba(0,0,0,0.5);
     ">
         <div style="padding:20px;text-align:center;border-bottom:1px solid #1e2433;">
-            <h2 style="color:#e8c153;margin:0;font-size:18px;">VOCH TECH</h2>
+            <h2 style="color:#e8c153;margin:0;font-size:18px;"></h2>
             <p style="font-size:12px;color:#9ca3af;">Teste tecnico</p>
         </div>
 
@@ -45,7 +45,7 @@
         <div style="flex:1;"></div>
 
         <div style="text-align:center;font-size:12px;color:#9ca3af;padding:10px;border-top:1px solid #1e2433;">
-            © 2025 VOCH TECH
+        
         </div>
     </aside>
 

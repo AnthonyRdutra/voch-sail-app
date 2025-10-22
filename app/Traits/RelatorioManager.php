@@ -2,13 +2,15 @@
 
 namespace App\Traits;
 
-use Illuminate\Http\Client\Request;
+use Illuminate\Http\Request;
 use App\Jobs\ExportarRelatorioJob;
 use Illuminate\Support\Facades\Storage;
 use App\Models\{GrupoEconomico, Bandeira, Colaborador, Unidade};
 use App\Traits\LogAuditoria;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+use Illuminate\Http\JsonResponse;
 
 trait RelatorioManager
 {
@@ -97,113 +99,123 @@ trait RelatorioManager
     public function saveEdit($id)
     {
         try {
-            Log::debug("🟡 [saveEdit] Iniciando", [
-                'id' => $id,
-                'tipoRelatorio' => $this->tipoRelatorio,
-            ]);
+            $controllerClass = $this->getControllerByType($this->tipoRelatorio ?? '');
+            if (!$controllerClass) {
+                $this->msg = "Tipo de relatório inválido.";
+                return;
+            }
 
-            // Busca o item correto dentro do array $this->dados
-            $index = collect($this->dados)->search(fn($item) => ($item['ID'] ?? $item['id'] ?? null) == $id);
+            $this->audit(Auth::user()->name, 'delete', $this->tipoRelatorio, $this->dados);
+
+            // Localiza o item (aceita 'id' ou 'ID')
+            $index = collect($this->dados)->search(
+                fn($i) => (($i['id'] ?? $i['ID'] ?? null) == $id)
+            );
 
             if ($index === false) {
-                $this->msg = "Registro não encontrado localmente (ID {$id}).";
-                Log::warning("⚠️ [saveEdit] ID {$id} não encontrado em dados locais", [
-                    'ids_existentes' => collect($this->dados)->pluck('id')->toArray(),
-                ]);
+                $this->msg = "Registro não encontrado localmente.";
                 return;
             }
 
             $item = $this->dados[$index];
-            $tipo = $this->tipoRelatorio;
 
-            // Normaliza as chaves para lowercase
-            $itemLower = array_change_key_case($item, CASE_LOWER);
+            // ==== 1) Mapeia labels → campos reais (por tipo de relatório) ====
+            // Ajuste os aliases conforme seus controllers/DB:
+            $aliasesPorTipo = [
+                'grupos' => [
+                    'nome' => ['NOME', 'Nome', 'Grupo', 'GRUPO'],
+                ],
+                'bandeiras' => [
+                    'nome' => ['NOME', 'Nome', 'Bandeira', 'BANDEIRA'],
+                    'grupo_economico_id' => ['GRUPO', 'GRUPO_ECONOMICO', 'Grupo Econômico'],
+                ],
+                'unidades' => [
+                    'nome' => ['NOME', 'Nome', 'Unidade', 'UNIDADE'],
+                    'bandeira_id' => ['BANDEIRA', 'Bandeira'],
+                    'grupo_economico_id' => ['GRUPO', 'GRUPO_ECONOMICO', 'Grupo Econômico'],
+                ],
+                'colaboradores' => [
+                    'nome' => ['NOME', 'Nome'],
+                    'unidade_id' => ['UNIDADE', 'Unidade'],
+                ],
+            ];
 
-            // Agora a busca por 'id' sempre funciona
-            $id = $itemLower['id'] ?? null;
-            if (!$id) {
-                $this->msg = "Registro sem ID.";
-                Log::error("ID ausente em registro", ['item' => $item]);
-                return;
-            }
-            // Identifica o model dinamicamente
-            $modelClass = match ($tipo) {
-                'grupos' => GrupoEconomico::class,
-                'bandeiras' => Bandeira::class,
-                'unidades' => Unidade::class,
-                'colaboradores' => Colaborador::class,
-                default => null,
-            };
+            $aliases = $aliasesPorTipo[$this->tipoRelatorio] ?? [];
 
-            if (!$modelClass) {
-                $this->msg = "Modelo não encontrado para o tipo {$tipo}.";
-                Log::error("Modelo não encontrado", ['tipo' => $tipo]);
-                return;
-            }
+            // ==== 2) Normaliza as chaves do item e aplica aliases ====
+            $dadosNormalizados = [];
 
-            $id = $item['id'] ?? null;
-            if (!$id) {
-                $this->msg = "Registro sem ID.";
-                Log::error("ID ausente em registro", ['item' => $item]);
-                return;
-            }
+            // Primeiro: transforma todas as chaves em snake-case minúsculo
+            foreach ($item as $chave => $valor) {
+                $k = Str::snake(Str::of($chave)->trim()->lower()->toString());
 
-            $registro = $modelClass::find($id);
-            if (!$registro) {
-                $this->msg = "Registro não encontrado.";
-                Log::error("Registro não localizado", ['id' => $id]);
-                return;
+                // Ignora metacampos exibidos
+                if (in_array($k, ['id', 'created_at', 'updated_at', 'data_criacao', 'ultima_atualizacao'])) {
+                    continue;
+                }
+
+                $dadosNormalizados[$k] = $valor;
             }
 
-            Log::info("Dados originais", $registro->toArray());
-            Log::info("Dados editados", $item);
+            // Depois: aplica aliases para garantir que 'nome' exista, etc.
+            foreach ($aliases as $campoReal => $possiveisLabels) {
+                if (!array_key_exists($campoReal, $dadosNormalizados)) {
+                    foreach ($possiveisLabels as $label) {
+                        $lk = Str::snake(Str::of($label)->trim()->lower()->toString());
+                        if (array_key_exists($lk, $dadosNormalizados)) {
+                            $dadosNormalizados[$campoReal] = $dadosNormalizados[$lk];
+                            break;
+                        }
+                    }
+                }
+            }
 
-            // Remove chaves imutáveis e campos nulos
-            $dadosEditados = collect($item)
-                ->except(['id', 'created_at', 'updated_at', 'Data Criação', 'Última atualização'])
-                ->mapWithKeys(function ($valor, $chave) {
-                    // normaliza nomes vindos do front
-                    $mapa = [
-                        'Nome' => 'nome',
-                        'Data Criação' => 'created_at',
-                        'Última atualização' => 'updated_at',
-                    ];
-
-                    $novoCampo = $mapa[$chave] ?? $chave;
-
-                    return [$novoCampo => $valor];
-                })
-                ->filter(fn($v) => $v !== null && $v !== '')
+            // Segurança extra: remova chaves “apresentacionais” que tenham
+            // escapado, mantendo só o que é snake-case alfanumérico/underscore.
+            $dadosNormalizados = collect($dadosNormalizados)
+                ->filter(fn($v, $k) => preg_match('/^[a-z0-9_]+$/', $k))
                 ->toArray();
 
-            if (empty($dadosEditados)) {
-                $this->msg = "Nenhuma alteração detectada.";
-                Log::info("Nenhum campo alterado", ['item' => $item]);
-                return;
+            // ==== 3) Forma mais robusta de montar o Request ====
+            // Usa POST + _method=PUT para que $request->input() pegue tudo.
+            $request = Request::create(
+                uri: '',
+                method: 'POST',
+                parameters: array_merge($dadosNormalizados, ['_method' => 'PUT'])
+            );
+            $request->headers->set('Content-Type', 'application/x-www-form-urlencoded');
+
+            // ==== 4) Chama o controller ====
+            $controller = app($controllerClass);
+            $response = $controller->update($request, $id);
+
+            // ==== 5) Extrai payload de forma defensiva ====
+            if ($response instanceof JsonResponse) {
+                $payload = json_decode($response->getContent(), true);
+            } elseif (method_exists($response, 'getData')) {
+                $payload = $response->getData(true);
+            } else {
+                $payload = (array) $response;
             }
 
-            // Atualiza o registro
-            $antes = $registro->toArray();
-            $registro->fill($dadosEditados);
-            $registro->save();
+            // ==== 6) Atualiza a linha localmente (se vier 'data') ====
+            $dataAtualizada = $payload['data'] ?? null;
+            if ($dataAtualizada) {
+                $this->dados[$index] = $dataAtualizada;
+            }
 
-            // Atualiza o array local para refletir no front
-            $this->dados[$index] = $registro->fresh()->toArray();
+            $this->msg = $payload['message'] ?? 'Registro atualizado com sucesso!';
 
-            $this->audit(
-                Auth::user()->name,
-                'update',
-                ucfirst($this->tipoRelatorio),
-                ['antes' => $antes, 'depois' => $dadosEditados]
-            );
-
-            $this->msg = "Registro atualizado com sucesso!";
-
-            $this->relatorio();
-            Log::info("Registro atualizado com sucesso", ['id' => $id]);
+            \Log::info('Atualização concluída', [
+                'id' => $id,
+                'controller' => $controllerClass,
+                'payload_enviado' => $dadosNormalizados,
+                'msg' => $this->msg,
+            ]);
         } catch (\Throwable $e) {
-            $this->msg = "Erro ao salvar edição: " . $e->getMessage();
-            Log::error("Erro em saveEdit()", [
+            $this->msg = "Erro ao atualizar: " . $e->getMessage();
+            \Log::error('Erro em saveEdit()', [
+                'id' => $id,
                 'exception' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
@@ -214,12 +226,8 @@ trait RelatorioManager
     public function delete($id)
     {
         try {
-            Log::info('Iniciando exclusão (trait RelatorioManager)', [
-                'id' => $id,
-                'tipoRelatorio' => $this->tipoRelatorio,
-            ]);
+            Log::info('🧭 MÉTODO DELETE INICIADO', ['id' => $id, 'tipo' => $this->tipoRelatorio]);
 
-            // Resolve dinamicamente o Model conforme o tipo selecionado
             $modelClass = match ($this->tipoRelatorio) {
                 'grupos'        => \App\Models\GrupoEconomico::class,
                 'bandeiras'     => \App\Models\Bandeira::class,
@@ -229,37 +237,38 @@ trait RelatorioManager
             };
 
             if (!$modelClass) {
-                $this->msg = 'Tipo de relatório inválido para exclusão.';
-                Log::error('Modelo não mapeado para exclusão', ['tipoRelatorio' => $this->tipoRelatorio]);
+                $this->msg = 'Tipo de relatório inválido.';
                 return;
             }
 
             $registro = $modelClass::find($id);
-
             if (!$registro) {
                 $this->msg = "Registro não encontrado (ID: {$id}).";
-                Log::warning('Tentativa de exclusão de registro inexistente', ['id' => $id, 'model' => $modelClass]);
-                // Remove da lista local caso já tenha sido removido em outra aba/usuário
-                $this->dados = array_values(array_filter($this->dados, fn($item) => ($item['id'] ?? null) != $id));
+                $this->dados = array_values(array_filter(
+                    $this->dados,
+                    fn($item) => (($item['id'] ?? $item['ID'] ?? null) != $id)
+                ));
                 return;
             }
 
-            Log::info('Registro localizado para exclusão', ['id' => $id, 'model' => $modelClass]);
-
             $registro->delete();
 
-            Log::info('Exclusão realizada com sucesso', ['id' => $id, 'model' => $modelClass]);
+            $this->dados = array_values(array_filter(
+                $this->dados,
+                fn($item) => (($item['id'] ?? $item['ID'] ?? null) != $id)
+            ));
 
-            // Atualiza a tabela local imediata (mais leve que refazer a consulta toda)
-            $this->dados = array_values(array_filter($this->dados, fn($item) => ($item['id'] ?? null) != $id));
+            $this->audit(Auth::user()->name, 'delete', $this->tipoRelatorio, [
+                'id' => $id,
+                'nome' => $registro->nome ?? null,
+            ]);
 
-            $this->audit(Auth::user()->name, 'delete', $this->tipo, $registro);
-            $this->msg = 'Registro excluído com sucesso.';
+            $this->msg = "Registro excluído com sucesso (ID {$id}).";
+            Log::info('✅ Exclusão concluída', ['id' => $id]);
         } catch (\Throwable $e) {
             $this->msg = 'Erro ao excluir: ' . $e->getMessage();
-            Log::error('Erro no delete() do RelatorioManager', [
+            Log::error('💥 Erro em delete()', [
                 'id' => $id,
-                'tipoRelatorio' => $this->tipoRelatorio,
                 'exception' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
@@ -294,7 +303,6 @@ trait RelatorioManager
                 return;
             }
 
-            // Formata de acordo com o tipo
             $dadosFormatados = $this->formatarPorTipo($tipo, $dados);
             $this->dadosFormatados = [$tipo => $dadosFormatados];
 
@@ -304,10 +312,8 @@ trait RelatorioManager
                 mkdir($exportPath, 0777, true);
             }
 
-            // Nome base fixo (mantendo compatibilidade com o Job existente)
             $tipoBase = 'relatorios_completos';
 
-            // Dispara o Job para a fila
             ExportarRelatorioJob::dispatch($this->dadosFormatados, $tipoBase, 'exports');
 
             $this->msg = 'Exportação iniciada, o arquivo será gerado em alguns segundos...';
