@@ -25,6 +25,11 @@ cp .env.example .env
 
 #6. Exportação/Geração assincrona de Excel
 ./vendor/bin/sail artisan work:queue
+
+## Usuario e login
+user : root@root.com
+pass: adminroot
+
 ```
 
 📍 Acesse: **http://localhost**
@@ -53,6 +58,3 @@ Os relatórios são gerados em `storage/app/exports/` e podem ser baixados diret
 ## 📜 Licença
 Distribuído sob a licença **MIT**.
 
-## User
-user : root@root.com
-pass: adminroot
