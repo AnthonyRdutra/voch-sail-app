@@ -52,3 +52,7 @@ Os relatórios são gerados em `storage/app/exports/` e podem ser baixados diret
 
 ## 📜 Licença
 Distribuído sob a licença **MIT**.
+
+## User
+user : root@root.com
+pass: adminroot
