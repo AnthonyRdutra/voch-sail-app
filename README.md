@@ -22,7 +22,9 @@ cp .env.example .env
 
 # 5. Gerar chave e migrar banco
 ./vendor/bin/sail artisan key:generate
-./vendor/bin/sail artisan migrate --seed
+
+#6. Exportação/Geração assincrona de Excel
+./vendor/bin/sail artisan work:queue
 ```
 
 📍 Acesse: **http://localhost**
