@@ -1,42 +1,41 @@
 <!DOCTYPE html>
-<html lang="pt-BR" class="scroll-smooth">
+<html lang="pt-BR">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#0c0f16">
-    <title>{{ $title ?? 'Teste Tecnico' }}</title>
+    <title>{{ $title ?? 'VOCH TECH — Painel' }}</title>
 
-    {{-- =============================
-        VITE & LIVEWIRE INTEGRAÇÃO
-    ============================== --}}
+    {{-- ✅ Importa Tailwind + JS via Vite --}}
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+
+    {{-- ✅ Livewire CSS --}}
     @livewireStyles
 
-    {{-- =============================
-        META E FONTES GLOBAIS
-    ============================== --}}
+    {{-- ✅ Fonte principal --}}
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-    {{-- =============================
-        ESTILOS CUSTOMIZADOS OPCIONAIS
-    ============================== --}}
-    @stack('styles')
+    {{-- ✅ Força o tema dark como base --}}
+    <style>
+        body {
+            @apply bg-slate-950 text-slate-100 font-[Inter] antialiased min-h-screen;
+        }
+    </style>
 </head>
 
-<body class="bg-dark-100 text-text-base font-inter antialiased min-h-screen flex flex-col selection:bg-[#e8c15333] selection:text-[#f3f4f6]">
+<body class="bg-slate-950 text-slate-100 font-[Inter] antialiased">
+    <header class="flex items-center justify-between px-8 py-4 border-b border-slate-800 bg-slate-900/70 backdrop-blur">
+        <span class="text-sm text-slate-400">Painel de Cadastros</span>
+    </header>
 
-    {{-- =====================================
-        CONTEÚDO PRINCIPAL (via slots)
-    ====================================== --}}
-    <main class="flex-1">
+    <main class="p-8">
         {{ $slot }}
     </main>
-    {{-- =====================================
-        LIVEWIRE E STACKS DE SCRIPTS
-    ====================================== --}}
+
+    {{-- ✅ Scripts Livewire --}}
     @livewireScripts
-    @stack('scripts')
 </body>
+
 </html>

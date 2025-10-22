@@ -27,7 +27,9 @@ class AuditoriaComponent extends Component
                     $detalhes = $log->detalhes;
 
                     if (is_string($detalhes)) {
-                        $detalhes = trim($detalhes, "\" \t\n\r\0\x0B");
+                        $detalhes = trim($detalhes);
+                        $detalhes = preg_replace('/^"(.*)"$/', '$1', $detalhes);
+
                         $json = json_decode($detalhes, true);
                         if (json_last_error() === JSON_ERROR_NONE) {
                             $detalhes = $json;
@@ -42,9 +44,9 @@ class AuditoriaComponent extends Component
                         'created_at' => $log->created_at?->format('Y-m-d H:i:s') ?? '—',
                     ];
                 })
-                ->toArray();
-
-            Log::debug('[Auditoria] Total de logs carregados: ' . count($this->logs));
+                ->values()        // 🔹 garante reindexação
+                ->all();
+            Log::debug('Auditoria logs =>', $this->logs);          // 🔹 e converte fora do map
         } catch (\Throwable $e) {
             Log::error('[Auditoria] Erro ao carregar logs: ' . $e->getMessage());
             $this->logs = [];

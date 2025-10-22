@@ -1,7 +1,7 @@
-<div wire:key="auditoria" wire:poll.20s="atualizar"
+<div
     class="p-6 bg-[#0c0f16] text-[#f3f4f6] font-[Inter] not-italic rounded-xl border border-[#1e2433] shadow-lg"
-    style="font-style: normal !important;">
-
+    style="font-style: normal !important;"
+    wire:poll.20s="atualizar">
     <style>
         [wire\\:key="auditoria"],
         [wire\\:key="auditoria"] * {
@@ -20,56 +20,9 @@
 
     {{-- BLOCO ALPINE --}}
     <div
-        x-data="{
-            logs: @entangle('logs').live,
-            busca: '',
-            ordemCampo: 'created_at',
-            ordemDirecao: 'desc',
-
-            get filtrados() {
-                let lista = this.logs;
-                if (this.busca.trim() !== '') {
-                    const termo = this.busca.toLowerCase();
-                    lista = lista.filter(item =>
-                        Object.values(item).some(v =>
-                            String(v ?? '').toLowerCase().includes(termo)
-                        )
-                    );
-                }
-                if (this.ordemCampo) {
-                    lista = [...lista].sort((a, b) => {
-                        const av = String(a[this.ordemCampo] ?? '').toLowerCase();
-                        const bv = String(b[this.ordemCampo] ?? '').toLowerCase();
-                        if (av < bv) return this.ordemDirecao === 'asc' ? -1 : 1;
-                        if (av > bv) return this.ordemDirecao === 'asc' ? 1 : -1;
-                        return 0;
-                    });
-                }
-                return lista;
-            },
-            toggleDirecao() {
-                this.ordemDirecao = this.ordemDirecao === 'asc' ? 'desc' : 'asc';
-            },
-            formatarDetalhes(valor) {
-                if (!valor) return '—';
-                if (typeof valor === 'object') {
-                    return Object.entries(valor)
-                        .map(([k, v]) => `<span class='font-semibold text-[#e8c153]'>${k}</span>: ${v}`)
-                        .join('<br>');
-                }
-                return valor;
-            },
-            formatarData(dataStr) {
-                if (!dataStr) return '—';
-                const data = new Date(dataStr);
-                return data.toLocaleString('pt-BR', {
-                    day: '2-digit', month: '2-digit', year: '2-digit',
-                    hour: '2-digit', minute: '2-digit'
-                });
-            }
-        }"
+        x-data="auditoriaFront(@js($logs))"
+        x-init="init()"
         class="space-y-5">
-
         {{-- FILTROS --}}
         <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
             <input x-model="busca" type="text" placeholder="Buscar..."
@@ -79,16 +32,7 @@
 
             <div class="flex items-center gap-3 flex-wrap justify-end">
                 <div class="flex items-center gap-2">
-                    <label class="text-sm text-[#e8c153] font-semibold">Ordenar por:</label>
-                    <select x-model="ordemCampo"
-                        class="bg-[#1a1f2d] border border-[#2a3044] text-[#f3f4f6]
-                               rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#e8c153]">
-                        <option value="created_at">Data</option>
-                        <option value="usuario">Usuário</option>
-                        <option value="acao">Ação</option>
-                        <option value="entidade">Entidade</option>
-                    </select>
-
+                    <label class="text-sm text-[#e8c153] font-semibold">Ordenar:</label>
                     <button @click="toggleDirecao()"
                         class="px-4 py-2 rounded-md bg-[#121623] border border-[#2a3044]
                                text-[#f3f4f6] hover:text-[#e8c153] transition">
@@ -97,7 +41,8 @@
                 </div>
 
                 {{-- BOTÃO ATUALIZAR --}}
-                <button wire:click="atualizar"
+                <button
+                    @click="$wire.atualizar()"
                     class="px-4 py-2 rounded-md bg-[#e8c153] text-[#0c0f16] font-semibold
                            hover:bg-[#f1d372] active:scale-95 transition flex items-center gap-2">
                     <i class="fa-solid fa-rotate-right animate-spin-once" wire:loading wire:target="atualizar"></i>
@@ -143,3 +88,87 @@
         </div>
     </div>
 </div>
+
+{{-- ==============================
+    SCRIPT FRONTEND AUDITORIA
+============================== --}}
+<script>
+    function auditoriaFront(initialLogs) {
+        return {
+            logs: initialLogs ?? [],
+            busca: '',
+            ordemDirecao: 'desc',
+
+            init() {
+                // Nenhum watcher necessário, Alpine é reiniciado a cada atualização Livewire
+            },
+
+            get filtrados() {
+                let lista = this.logs ?? [];
+                const termo = this.busca.toLowerCase();
+
+                if (termo) {
+                    lista = lista.filter(i =>
+                        Object.values(i).some(v =>
+                            String(v ?? '').toLowerCase().includes(termo)
+                        )
+                    );
+                }
+
+                return [...lista].sort((a, b) => {
+                    const av = (a.created_at || '').toLowerCase();
+                    const bv = (b.created_at || '').toLowerCase();
+                    if (av < bv) return this.ordemDirecao === 'asc' ? -1 : 1;
+                    if (av > bv) return this.ordemDirecao === 'asc' ? 1 : -1;
+                    return 0;
+                });
+            },
+
+            toggleDirecao() {
+                this.ordemDirecao = this.ordemDirecao === 'asc' ? 'desc' : 'asc';
+            },
+
+            formatarDetalhes(valor) {
+                if (!valor) return '—';
+
+                if (typeof valor === 'string') {
+                    let texto = valor.trim();
+                    if (texto.startsWith('"') && texto.endsWith('"')) {
+                        texto = texto.slice(1, -1);
+                    }
+
+                    try {
+                        const parsed = JSON.parse(texto);
+                        if (typeof parsed === 'object' && parsed !== null) {
+                            return Object.entries(parsed)
+                                .map(([k, v]) => `<span class='font-semibold text-[#e8c153]'>${k}</span>: ${v}`)
+                                .join('<br>');
+                        }
+                    } catch (_) {}
+
+                    return texto;
+                }
+
+                if (typeof valor === 'object') {
+                    return Object.entries(valor)
+                        .map(([k, v]) => `<span class='font-semibold text-[#e8c153]'>${k}</span>: ${v}`)
+                        .join('<br>');
+                }
+
+                return String(valor);
+            },
+
+            formatarData(str) {
+                if (!str) return '—';
+                const d = new Date(str);
+                return d.toLocaleString('pt-BR', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            }
+        };
+    }
+</script>

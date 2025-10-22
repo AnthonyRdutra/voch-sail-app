@@ -23,107 +23,59 @@ trait RelatorioManager
     public function relatorio()
     {
         try {
-            $controllerClass = $this->getControllerByType($this->tipoRelatorio);
+            $controller = $this->getController();
 
-            if (!$controllerClass) {
-                $this->msg = 'Tipo de relatório inválido';
+            if (!$controller) {
+                $this->msg = 'Tipo de relatório inválido.';
                 $this->dados = [];
                 return;
             }
 
-            Log::debug("🔹 [Relatorio] Iniciando geração para tipo: {$this->tipoRelatorio}");
-            Log::debug("🔹 [Relatorio] Controller: {$controllerClass}");
+            // Coleta e formata dados conforme o tipo
+            switch ($this->tipoRelatorio) {
+                case 'grupos':
+                    $dados = \App\Models\GrupoEconomico::all()->toArray();
+                    $this->dados = $this->mapGrupos($dados);
+                    break;
 
-            // ================================
-            // 1️⃣ CHAMADA DO CONTROLLER
-            // ================================
-            $response = $this->callController($controllerClass, 'index');
+                case 'bandeiras':
+                    $dados = \App\Models\Bandeira::with('grupoEconomico')->get()->toArray();
+                    $this->dados = $this->mapBandeiras($dados);
+                    break;
 
-            // Padroniza o retorno (JsonResponse, array, View, etc.)
-            if (is_object($response) && method_exists($response, 'getData')) {
-                $payload = $response->getData(true);
-            } elseif (is_array($response)) {
-                $payload = $response;
-            } elseif (is_object($response) && property_exists($response, 'original')) {
-                $payload = $response->original;
-            } else {
-                $payload = (array) $response;
+                case 'unidades':
+                    $dados = \App\Models\Unidade::with('bandeira')->get()->toArray();
+                    $this->dados = $this->mapUnidades($dados);
+                    break;
+
+                case 'colaboradores':
+                    $dados = \App\Models\Colaborador::with('unidade')->get()->toArray();
+                    $this->dados = $this->mapColaboradores($dados);
+                    break;
+
+                default:
+                    $this->dados = [];
             }
 
-            Log::debug('🔸 [Relatorio] Payload bruto recebido:', ['payload' => $payload]);
+            // Normaliza as chaves para não quebrar o Blade
+            $this->dados = collect($this->dados)
+                ->map(function ($item) {
+                    return collect($item)->keyBy(
+                        fn($v, $k) =>
+                        str_replace(
+                            [' ', 'á', 'ã', 'â', 'ç', 'é', 'ó', 'í', 'ú', 'Á', 'Ã', 'Ç', 'É', 'Ó', 'Í', 'Ú'],
+                            ['_', 'a', 'a', 'a', 'c', 'e', 'o', 'i', 'u', 'A', 'A', 'C', 'E', 'O', 'I', 'U'],
+                            mb_strtoupper($k)
+                        )
+                    )->toArray();
+                })
+                ->toArray();
 
-            if (isset($payload['data'])) {
-                $items = $payload['data'];
-            } elseif (isset($payload['payload'])) {
-                $items = $payload['payload'];
-            } else {
-                $items = $payload;
-            }
-
-            if (!is_array($items)) {
-                $items = json_decode(json_encode($items), true);
-            }
-
-            if (isset($items['id'])) {
-                $items = [$items];
-            }
-
-            Log::debug('🔹 [Relatorio] Itens antes do flatten:', ['items' => $items]);
-
-            // ================================
-            // 2️⃣ ACHATA ARRAYS ANINHADOS
-            // ================================
-            $items = collect($items)->map(function ($item) {
-                if (!is_array($item)) return [];
-                foreach ($item as $key => $value) {
-                    if (is_array($value)) {
-                        foreach ($value as $subKey => $subVal) {
-                            $item["{$key}_{$subKey}"] = $subVal;
-                        }
-                        unset($item[$key]);
-                    }
-                }
-                return $item;
-            })->filter(fn($i) => !empty($i))->values()->toArray();
-
-            Log::debug('🔹 [Relatorio] Itens após flatten:', ['items' => $items]);
-
-            // ================================
-            // 3️⃣ MAPEAMENTO FORMATADO
-            // ================================
-            $this->dados = match ($this->tipoRelatorio) {
-                'grupos'        => $this->mapGrupos($items),
-                'bandeiras'     => $this->mapBandeiras($items),
-                'unidades'      => $this->mapUnidades($items),
-                'colaboradores' => $this->mapColaboradores($items),
-                default         => [],
-            };
-
-            Log::debug("🔸 [Relatorio] Dados após map ({$this->tipoRelatorio}):", ['dados' => $this->dados]);
-
-            // ================================
-            // 4️⃣ REMOVE DUPLICADOS
-            // ================================
-            $this->dados = collect($this->dados)->map(function ($item) {
-                $item = (array) $item;
-                return collect($item)->reject(function ($value, $key) use ($item) {
-                    $campoRelacionado = str_replace('_id', '', $key);
-                    return str_ends_with($key, '_id') && array_key_exists($campoRelacionado, $item);
-                })->toArray();
-            })->values()->toArray();
-
-            Log::debug("✅ [Relatorio] Dados finais formatados:", ['dados' => $this->dados]);
-
-            $this->msg = null;
+            $this->foreignOptions = $this->getForeignOptions($this->tipoRelatorio);
+            $this->msg = "Exibindo relatório de " . ucfirst($this->tipoRelatorio) . ".";
         } catch (\Throwable $e) {
+            $this->msg = 'Erro ao carregar relatório: ' . $e->getMessage();
             $this->dados = [];
-            $this->msg = 'Erro ao gerar relatório: ' . $e->getMessage();
-
-            Log::error('❌ [Relatorio] Erro ao gerar relatório', [
-                'tipo' => $this->tipoRelatorio,
-                'mensagem' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
         }
     }
 
@@ -142,23 +94,38 @@ trait RelatorioManager
         $this->editIndex = null;
     }
 
-    public function saveEdit($index)
+    public function saveEdit($id)
     {
         try {
-            Log::info("Iniciando saveEdit()", [
-                'index' => $index,
+            Log::debug("🟡 [saveEdit] Iniciando", [
+                'id' => $id,
                 'tipoRelatorio' => $this->tipoRelatorio,
             ]);
 
-            if (!isset($this->dados[$index])) {
-                $this->msg = "Erro: índice inválido.";
-                Log::warning("Índice inexistente em saveEdit", ['index' => $index]);
+            // Busca o item correto dentro do array $this->dados
+            $index = collect($this->dados)->search(fn($item) => ($item['ID'] ?? $item['id'] ?? null) == $id);
+
+            if ($index === false) {
+                $this->msg = "Registro não encontrado localmente (ID {$id}).";
+                Log::warning("⚠️ [saveEdit] ID {$id} não encontrado em dados locais", [
+                    'ids_existentes' => collect($this->dados)->pluck('id')->toArray(),
+                ]);
                 return;
             }
 
             $item = $this->dados[$index];
             $tipo = $this->tipoRelatorio;
 
+            // Normaliza as chaves para lowercase
+            $itemLower = array_change_key_case($item, CASE_LOWER);
+
+            // Agora a busca por 'id' sempre funciona
+            $id = $itemLower['id'] ?? null;
+            if (!$id) {
+                $this->msg = "Registro sem ID.";
+                Log::error("ID ausente em registro", ['item' => $item]);
+                return;
+            }
             // Identifica o model dinamicamente
             $modelClass = match ($tipo) {
                 'grupos' => GrupoEconomico::class,

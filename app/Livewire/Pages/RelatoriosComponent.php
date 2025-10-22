@@ -2,9 +2,9 @@
 
 namespace App\Livewire\Pages;
 
+use Livewire\Component;
 use App\Jobs\ExportarRelatorioJob;
 use App\Models\{Bandeira, Colaborador, GrupoEconomico, Unidade};
-use Livewire\Component;
 use App\Traits\{
     ControllerInvoker,
     RelatorioFormatter,
@@ -12,10 +12,13 @@ use App\Traits\{
     RelatorioExporter,
     RelatorioManager
 };
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
 
 class RelatoriosComponent extends Component
 {
-    use ControllerInvoker, RelatorioFormatter, RelatorioControllerResolver, RelatorioExporter, RelatorioManager;
+
+     use ControllerInvoker, RelatorioFormatter, RelatorioControllerResolver, RelatorioExporter, RelatorioManager;
 
     public $tipoRelatorio = 'grupos';
     public $dados = [];
@@ -50,10 +53,14 @@ class RelatoriosComponent extends Component
 
     public function confirmarExportacao()
     {
+        Log::debug('[EXPORTAÇÃO] Clique recebido - iniciando processamento');
+
         $selecionados = array_keys(array_filter($this->exportar));
+        Log::debug('[EXPORTAÇÃO] Opções selecionadas:', $selecionados);
 
         if (empty($selecionados)) {
             $this->msg = 'Selecione ao menos uma opção para poder exportar.';
+            Log::warning('[EXPORTAÇÃO] Nenhuma opção marcada para exportação');
             return;
         }
 
@@ -61,49 +68,67 @@ class RelatoriosComponent extends Component
         $this->pollingAtivo = true;
         $this->pollingTentativas = 0;
         $this->dadosFormatados = [];
+        Log::debug('[EXPORTAÇÃO] Estado resetado. Polling iniciado.');
 
+        // === Etapa 3: coletar dados conforme os tipos ===
         foreach ($selecionados as $tipo) {
             try {
-                $controllerClass = $this->getControllerByType($tipo);
-                if (!$controllerClass) {
-                    $this->msg = 'Controller não encontrado para o tipo selecionado';
-                    continue;
-                }
+                Log::debug("[EXPORTAÇÃO] Coletando dados para tipo: {$tipo}");
 
                 $dados = match ($tipo) {
                     'grupos' => GrupoEconomico::all()->toArray(),
                     'bandeiras' => Bandeira::with('grupoEconomico')->get()->toArray(),
                     'unidades' => Unidade::with('bandeira')->get()->toArray(),
                     'colaboradores' => Colaborador::with('unidade')->get()->toArray(),
-                    default => []
+                    default => [],
                 };
 
+                Log::debug("[EXPORTAÇÃO] {$tipo} - registros obtidos: " . count($dados));
+
                 if (empty($dados)) {
-                    $this->msg = "Nenhum dado encontrado para {$tipo}";
+                    Log::warning("[EXPORTAÇÃO] Nenhum registro encontrado para {$tipo}");
                     continue;
                 }
 
                 $this->dadosFormatados[$tipo] = $this->formatarPorTipo($tipo, $dados);
+                Log::debug("[EXPORTAÇÃO] {$tipo} - dados formatados com sucesso");
             } catch (\Throwable $e) {
+                Log::error("[EXPORTAÇÃO] Erro ao processar {$tipo}: " . $e->getMessage(), [
+                    'trace' => $e->getTraceAsString()
+                ]);
                 $this->msg = "Falha ao processar {$tipo}: " . $e->getMessage();
             }
         }
 
         if (empty($this->dadosFormatados)) {
             $this->msg = 'Não há dados para exportar.';
+            Log::warning('[EXPORTAÇÃO] Nenhum dado formatado disponível.');
             return;
         }
 
-        // Cria diretório com permissões corretas
         $exportPath = storage_path("app/public/{$this->path}");
+        Log::debug("[EXPORTAÇÃO] Verificando diretório: {$exportPath}");
+
         if (!is_dir($exportPath)) {
             mkdir($exportPath, 0777, true);
+            Log::debug("[EXPORTAÇÃO] Diretório criado com sucesso.");
         }
 
-        // Dispara o job assíncrono
-        ExportarRelatorioJob::dispatch($this->dadosFormatados, 'relatorios_completos', $this->path);
+        try {
+            ExportarRelatorioJob::dispatch($this->dadosFormatados, 'relatorios_completos', $this->path);
+            Log::debug('[EXPORTAÇÃO] Job ExportarRelatorioJob despachado com sucesso.');
+        } catch (\Throwable $e) {
+            Log::error('[EXPORTAÇÃO] Falha ao despachar job: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString()
+            ]);
+            $this->msg = 'Erro ao iniciar exportação: ' . $e->getMessage();
+            return;
+        }
 
         $this->msg = 'Exportação iniciada. Aguarde o processamento...';
+        Log::debug('[EXPORTAÇÃO] Processo de exportação iniciado com sucesso.');
+
+        $this->dispatch('$refresh');
     }
 
     public function verificarExportacao()

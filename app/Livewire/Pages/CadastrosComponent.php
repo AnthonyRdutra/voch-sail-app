@@ -60,6 +60,7 @@ class CadastrosComponent extends Component
     // ===========================
     public function grupoStore()
     {
+        $name = $this->grupo_nome;
         try {
             $response = $this->callController(GrupoEconomicoController::class, 'store', [
                 'nome' => $this->grupo_nome
@@ -67,11 +68,8 @@ class CadastrosComponent extends Component
             $data = $response->getData(true);
             $this->msg = $data['message'] ?? 'Grupo salvo com sucesso!';
 
-            $this->registrarAcao('criado', 'grupo_economico', [
-                'nome' => $this->grupo_nome
-            ]);
-
             $this->reset('grupo_nome');
+            $this->audit(Auth::user()->name, 'add', 'grupo_economico', $name);
             $this->refreshLists();
         } catch (\Throwable $e) {
             $this->msg = 'Erro ao salvar grupo: ' . $e->getMessage();
@@ -94,6 +92,7 @@ class CadastrosComponent extends Component
     // ===========================
     public function bandeiraStore()
     {
+        $name = $this->bandeira_nome; 
         try {
             $response = $this->callController(BandeiraController::class, 'store', [
                 'nome' => $this->bandeira_nome,
@@ -101,13 +100,9 @@ class CadastrosComponent extends Component
             ]);
             $data = $response->getData(true);
             $this->msg = $data['message'] ?? 'Bandeira salva com sucesso!';
-
-            $this->registrarAcao('criado', 'bandeiras', [
-                'nome' => $this->bandeira_nome
-            ]);
-
             $this->reset(['bandeira_nome', 'grupo_economico_id']);
             $this->refreshLists();
+            $this->audit(Auth::user()->name, 'add', 'bandeira', $name);
         } catch (\Throwable $e) {
             $this->msg = 'Erro ao salvar bandeira: ' . $e->getMessage();
         }
@@ -134,6 +129,7 @@ class CadastrosComponent extends Component
     // ===========================
     public function unidadeStore()
     {
+        $name = $this->nome_fantasia;
         try {
             $response = $this->callController(UnidadeController::class, 'store', [
                 'nome_fantasia' => $this->nome_fantasia,
@@ -144,13 +140,9 @@ class CadastrosComponent extends Component
 
             $data = $response->getData(true);
             $this->msg = $data['message'] ?? 'Unidade salva com sucesso!';
-
-            $this->registrarAcao('criado', 'unidades', [
-                'nome_fantasia' => $this->nome_fantasia
-            ]);
-
             $this->reset(['nome_fantasia', 'razao_social', 'cnpj', 'bandeira_id']);
             $this->refreshLists();
+            $this->audit(Auth::user()->name, 'add', 'unidades', $name);
         } catch (\Throwable $e) {
             $this->msg = 'Erro ao salvar unidade: ' . $e->getMessage();
         }
@@ -176,11 +168,13 @@ class CadastrosComponent extends Component
         }
     }
 
+
     // ===========================
     // COLABORADORES
     // ===========================
     public function colaboradorStore()
-    {
+    {   
+        $name = $this->colaborador_nome; 
         try {
             $response = $this->callController(ColaboradorController::class, 'store', [
                 'nome'       => $this->colaborador_nome,
@@ -191,13 +185,9 @@ class CadastrosComponent extends Component
 
             $data = $response->getData(true);
             $this->msg = $data['message'] ?? 'Colaborador salvo com sucesso!';
-
-            $this->registrarAcao('criado', 'colaboradores', [
-                'nome' => $this->colaborador_nome
-            ]);
-
             $this->reset(['colaborador_nome', 'email', 'cpf', 'unidade_id']);
             $this->refreshLists();
+            $this->audit(Auth::user()->name, 'add', 'colaboradores', $name);
         } catch (\Throwable $e) {
             $this->msg = 'Erro ao salvar colaborador: ' . $e->getMessage();
         }

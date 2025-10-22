@@ -1,120 +1,104 @@
-<div class="grid grid-cols-1 xl:grid-cols-2 gap-10 justify-items-center">
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;justify-items:center;">
 
     {{-- =================== GRUPOS =================== --}}
-    <section class="bg-[#121623] rounded-2xl p-5 w-full max-w-[420px] transition">
-        <h2 class="text-lg font-semibold text-[#facc15] pb-2 mb-5">
+    <section style="background:#121623;border-radius:12px;padding:20px;width:100%;max-width:420px;color:#f3f4f6;">
+        <h2 style="font-size:18px;font-weight:bold;color:#facc15;margin-bottom:20px;">
             Cadastro de Grupo Econômico
         </h2>
-        <div class="space-y-4">
+
+        <div style="display:flex;flex-direction:column;gap:10px;">
             <input type="text" wire:model.defer="grupo_nome" placeholder="Digite o nome do grupo"
-                class="w-full px-3 py-2 bg-[#1a2030] border border-[#2a3248] rounded-md text-[#f3f4f6] placeholder:text-[#9ca3af] focus:ring-2 focus:ring-[#eab308] focus:outline-none transition">
-            <button wire:click="grupoStore"
-                class="w-full py-2 rounded-md bg-gradient-to-r from-[#c9a227] to-[#eab308] text-[#111827] font-semibold hover:brightness-110 transition">
-                Salvar Grupo
+                style="padding:8px;border:1px solid #2a3248;border-radius:6px;background:#1a2030;color:#f3f4f6;">
+
+            <button type="button" wire:click="grupoStore" wire:loading.attr="disabled">
+                <span wire:loading.remove wire:target="grupoStore">Salvar Grupo</span>
+                <span wire:loading wire:target="grupoStore">Salvando...</span>
             </button>
         </div>
     </section>
 
     {{-- =================== BANDEIRAS =================== --}}
-    <section class="bg-[#121623] rounded-2xl p-5 w-full max-w-[420px] transition">
-        <h2 class="text-lg font-semibold text-[#facc15] pb-2 mb-5">
+    <section style="background:#121623;border-radius:12px;padding:20px;width:100%;max-width:420px;color:#f3f4f6;">
+        <h2 style="font-size:18px;font-weight:bold;color:#facc15;margin-bottom:20px;">
             Cadastro de Bandeira
         </h2>
-        <div class="space-y-4">
+
+        <div style="display:flex;flex-direction:column;gap:10px;">
             <input type="text" wire:model.defer="bandeira_nome" placeholder="Digite o nome da bandeira"
-                class="w-full px-3 py-2 bg-[#1a2030] border border-[#2a3248] rounded-md text-[#f3f4f6] placeholder:text-[#9ca3af] focus:ring-2 focus:ring-[#eab308] focus:outline-none transition">
+                style="padding:8px;border:1px solid #2a3248;border-radius:6px;background:#1a2030;color:#f3f4f6;">
 
-            <div>
-                <label class="text-xs text-[#d1d5db] mb-1 block">Grupo Econômico</label>
-                <div class="relative">
-                    <select wire:model.defer="grupo_economico_id"
-                        class="w-full appearance-none px-3 py-2 bg-[#1a2030] border border-[#2a3248] rounded-md text-[#f3f4f6] focus:ring-2 focus:ring-[#eab308] focus:outline-none transition cursor-pointer">
-                        <option value="">-- Selecione o Grupo Econômico --</option>
-                        @foreach($grupoEconomico as $grupo)
-                        <option value="{{ $grupo['id'] }}">{{ $grupo['nome'] }}</option>
-                        @endforeach
-                    </select>
-                    <span class="absolute right-3 top-2.5 text-[#eab308] pointer-events-none text-xs">
-                        <i class="fa-solid fa-caret-down"></i>
-                    </span>
-                </div>
-            </div>
+            <label style="font-size:12px;color:#d1d5db;">Grupo Econômico</label>
+            <select wire:model.defer="grupo_economico_id"
+                style="padding:8px;border:1px solid #2a3248;border-radius:6px;background:#1a2030;color:#f3f4f6;">
+                <option value="">-- Selecione o Grupo Econômico --</option>
+                @foreach($grupoEconomico as $grupo)
+                    <option value="{{ $grupo['id'] }}">{{ $grupo['nome'] }}</option>
+                @endforeach
+            </select>
 
-            <button wire:click="bandeiraStore"
-                class="w-full py-2 rounded-md bg-gradient-to-r from-[#c9a227] to-[#eab308] text-[#111827] font-semibold hover:brightness-110 transition">
-                Salvar Bandeira
+            <button type="button" wire:click="bandeiraStore" wire:loading.attr="disabled">
+                <span wire:loading.remove wire:target="bandeiraStore">Salvar Bandeira</span>
+                <span wire:loading wire:target="bandeiraStore">Salvando...</span>
             </button>
         </div>
     </section>
 
     {{-- =================== UNIDADES =================== --}}
-    <section class="bg-[#121623] rounded-2xl p-5 w-full max-w-[420px] transition">
-        <h2 class="text-lg font-semibold text-[#facc15] pb-2 mb-5">
+    <section style="background:#121623;border-radius:12px;padding:20px;width:100%;max-width:420px;color:#f3f4f6;">
+        <h2 style="font-size:18px;font-weight:bold;color:#facc15;margin-bottom:20px;">
             Cadastro de Unidade
         </h2>
-        <div class="space-y-4">
+
+        <div style="display:flex;flex-direction:column;gap:10px;">
             <input type="text" wire:model.defer="nome_fantasia" placeholder="Nome fantasia"
-                class="w-full px-3 py-2 bg-[#1a2030] border border-[#2a3248] rounded-md text-[#f3f4f6] placeholder:text-[#9ca3af] focus:ring-2 focus:ring-[#eab308] focus:outline-none transition">
+                style="padding:8px;border:1px solid #2a3248;border-radius:6px;background:#1a2030;color:#f3f4f6;">
             <input type="text" wire:model.defer="razao_social" placeholder="Razão social"
-                class="w-full px-3 py-2 bg-[#1a2030] border border-[#2a3248] rounded-md text-[#f3f4f6] placeholder:text-[#9ca3af] focus:ring-2 focus:ring-[#eab308] focus:outline-none transition">
+                style="padding:8px;border:1px solid #2a3248;border-radius:6px;background:#1a2030;color:#f3f4f6;">
             <input type="text" wire:model.defer="cnpj" placeholder="CNPJ"
-                class="w-full px-3 py-2 bg-[#1a2030] border border-[#2a3248] rounded-md text-[#f3f4f6] placeholder:text-[#9ca3af] focus:ring-2 focus:ring-[#eab308] focus:outline-none transition">
+                style="padding:8px;border:1px solid #2a3248;border-radius:6px;background:#1a2030;color:#f3f4f6;">
 
-            <div>
-                <label class="text-xs text-[#d1d5db] mb-1 block">Bandeira</label>
-                <div class="relative">
-                    <select wire:model.defer="bandeira_id"
-                        class="w-full appearance-none px-3 py-2 bg-[#1a2030] border border-[#2a3248] rounded-md text-[#f3f4f6] focus:ring-2 focus:ring-[#eab308] focus:outline-none transition cursor-pointer">
-                        <option value="">-- Selecione a Bandeira --</option>
-                        @foreach($bandeiras as $bandeira)
-                        <option value="{{ $bandeira['id'] }}">{{ $bandeira['nome'] }}</option>
-                        @endforeach
-                    </select>
-                    <span class="absolute right-3 top-2.5 text-[#eab308] pointer-events-none text-xs">
-                        <i class="fa-solid fa-caret-down"></i>
-                    </span>
-                </div>
-            </div>
+            <label style="font-size:12px;color:#d1d5db;">Bandeira</label>
+            <select wire:model.defer="bandeira_id"
+                style="padding:8px;border:1px solid #2a3248;border-radius:6px;background:#1a2030;color:#f3f4f6;">
+                <option value="">-- Selecione a Bandeira --</option>
+                @foreach($bandeiras as $bandeira)
+                    <option value="{{ $bandeira['id'] }}">{{ $bandeira['nome'] }}</option>
+                @endforeach
+            </select>
 
-            <button wire:click="unidadeStore"
-                class="w-full py-2 rounded-md bg-gradient-to-r from-[#c9a227] to-[#eab308] text-[#111827] font-semibold hover:brightness-110 transition">
-                Salvar Unidade
+            <button type="button" wire:click="unidadeStore" wire:loading.attr="disabled">
+                <span wire:loading.remove wire:target="unidadeStore">Salvar Unidade</span>
+                <span wire:loading wire:target="unidadeStore">Salvando...</span>
             </button>
         </div>
     </section>
 
     {{-- =================== COLABORADORES =================== --}}
-    <section class="bg-[#121623] rounded-2xl p-5 w-full max-w-[420px] transition">
-        <h2 class="text-lg font-semibold text-[#facc15] pb-2 mb-5">
+    <section style="background:#121623;border-radius:12px;padding:20px;width:100%;max-width:420px;color:#f3f4f6;">
+        <h2 style="font-size:18px;font-weight:bold;color:#facc15;margin-bottom:20px;">
             Cadastro de Colaborador
         </h2>
-        <div class="space-y-4">
+
+        <div style="display:flex;flex-direction:column;gap:10px;">
             <input type="text" wire:model.defer="colaborador_nome" placeholder="Nome completo"
-                class="w-full px-3 py-2 bg-[#1a2030] border border-[#2a3248] rounded-md text-[#f3f4f6] placeholder:text-[#9ca3af] focus:ring-2 focus:ring-[#eab308] focus:outline-none transition">
+                style="padding:8px;border:1px solid #2a3248;border-radius:6px;background:#1a2030;color:#f3f4f6;">
             <input type="email" wire:model.defer="email" placeholder="Email"
-                class="w-full px-3 py-2 bg-[#1a2030] border border-[#2a3248] rounded-md text-[#f3f4f6] placeholder:text-[#9ca3af] focus:ring-2 focus:ring-[#eab308] focus:outline-none transition">
+                style="padding:8px;border:1px solid #2a3248;border-radius:6px;background:#1a2030;color:#f3f4f6;">
             <input type="text" wire:model.defer="cpf" placeholder="CPF"
-                class="w-full px-3 py-2 bg-[#1a2030] border border-[#2a3248] rounded-md text-[#f3f4f6] placeholder:text-[#9ca3af] focus:ring-2 focus:ring-[#eab308] focus:outline-none transition">
+                style="padding:8px;border:1px solid #2a3248;border-radius:6px;background:#1a2030;color:#f3f4f6;">
 
-            <div>
-                <label class="text-xs text-[#d1d5db] mb-1 block">Unidade</label>
-                <div class="relative">
-                    <select wire:model.defer="unidade_id"
-                        class="w-full appearance-none px-3 py-2 bg-[#1a2030] border border-[#2a3248] rounded-md text-[#f3f4f6] focus:ring-2 focus:ring-[#eab308] focus:outline-none transition cursor-pointer">
-                        <option value="">-- Selecione a Unidade --</option>
-                        @foreach($unidades as $unidade)
-                        <option value="{{ $unidade['id'] }}">{{ $unidade['nome_fantasia'] ?? 'Sem nome' }}</option>
-                        @endforeach
-                    </select>
-                    <span class="absolute right-3 top-2.5 text-[#eab308] pointer-events-none text-xs">
-                        <i class="fa-solid fa-caret-down"></i>
-                    </span>
-                </div>
-            </div>
+            <label style="font-size:12px;color:#d1d5db;">Unidade</label>
+            <select wire:model.defer="unidade_id"
+                style="padding:8px;border:1px solid #2a3248;border-radius:6px;background:#1a2030;color:#f3f4f6;">
+                <option value="">-- Selecione a Unidade --</option>
+                @foreach($unidades as $unidade)
+                    <option value="{{ $unidade['id'] }}">{{ $unidade['nome_fantasia'] ?? 'Sem nome' }}</option>
+                @endforeach
+            </select>
 
-            <button wire:click="colaboradorStore"
-                class="w-full py-2 rounded-md bg-gradient-to-r from-[#c9a227] to-[#eab308] text-[#111827] font-semibold hover:brightness-110 transition">
-                Salvar Colaborador
+            <button type="button" wire:click="colaboradorStore" wire:loading.attr="disabled">
+                <span wire:loading.remove wire:target="colaboradorStore">Salvar Colaborador</span>
+                <span wire:loading wire:target="colaboradorStore">Salvando...</span>
             </button>
         </div>
     </section>

@@ -1,15 +1,8 @@
 <div
     wire:key="relatorios"
-    x-data="relatoriosUI(
-        @entangle('dados').live,
-        @entangle('tipoRelatorio'),
-        @entangle('foreignOptions').live
-    )"
-    x-init="init()"
-    class="p-6 bg-[#0c0f16] text-[#f3f4f6] font-[Inter] rounded-xl border border-[#1e2433] shadow-lg"
->
+    class="p-6 bg-[#0c0f16] text-[#f3f4f6] font-[Inter] rounded-xl border border-[#1e2433] shadow-lg">
     {{-- =========================
-        SELETOR DE RELATÓRIO
+        CABEÇALHO
     ========================== --}}
     <div class="flex flex-wrap items-center justify-between mb-6 gap-4">
         <div class="flex items-center gap-3 w-full sm:w-auto">
@@ -18,10 +11,9 @@
             </label>
             <select
                 id="tipoRelatorio"
-                x-model="tipoRelatorio"
-                @change="$wire.set('tipoRelatorio', tipoRelatorio); $wire.relatorio()"
-                class="bg-[#1a1f2d] border border-[#2a3044] text-[#f3f4f6] rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#e8c153]"
-            >
+                wire:model="tipoRelatorio"
+                wire:change="relatorio"
+                class="bg-[#1a1f2d] border border-[#2a3044] text-[#f3f4f6] rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#e8c153]">
                 <option value="">Selecione...</option>
                 <option value="grupos">Grupos Econômicos</option>
                 <option value="bandeiras">Bandeiras</option>
@@ -31,273 +23,226 @@
         </div>
 
         <button
-            @click="$wire.relatorio()"
-            class="bg-[#e8c153] hover:bg-[#f1d071] text-[#0c0f16] font-semibold px-5 py-2 rounded-md shadow-md transition"
-        >
+            wire:click="relatorio"
+            class="bg-[#e8c153] hover:bg-[#f1d071] text-[#0c0f16] font-semibold px-5 py-2 rounded-md shadow-md transition">
             Atualizar Relatório
         </button>
     </div>
 
     {{-- =========================
-        FILTROS + EXPORTAÇÃO
+        STATUS / MENSAGENS / LOADING
     ========================== --}}
-    <div class="flex flex-wrap items-center justify-between mb-4 gap-3">
-        <div class="flex items-center gap-2 flex-1">
-            <input
-                type="text"
-                placeholder="Buscar..."
-                x-model.debounce.300ms="busca"
-                class="bg-[#1a1f2d] border border-[#2a3044] text-[#f3f4f6] placeholder-[#9ca3af] 
-                       rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#e8c153] w-full sm:w-auto"
-            />
+    <div class="mb-4">
+        @if ($msg)
+        <div class="p-3 bg-[#121623] border border-[#2a3044] rounded-md text-sm text-gray-300">
+            {{ $msg }}
         </div>
+        @endif
 
-        <div class="flex items-center gap-3">
-            <button
-                @click="toggleSort('id')"
-                :class="ordemCampo === 'id' ? 'ring-2 ring-[#e8c153] text-[#e8c153]' : ''"
-                class="px-3 py-2 rounded-md bg-[#121623] border border-[#2a3044] text-[#f3f4f6] hover:text-[#e8c153] transition"
-            >
-                Ordenar por ID
-            </button>
-
-            <button
-                @click="toggleSort('nome')"
-                :class="ordemCampo === 'nome' ? 'ring-2 ring-[#e8c153] text-[#e8c153]' : ''"
-                class="px-3 py-2 rounded-md bg-[#121623] border border-[#2a3044] text-[#f3f4f6] hover:text-[#e8c153] transition"
-            >
-                Ordenar A–Z
-            </button>
-
-            {{-- BOTÃO ABRIR MODAL EXPORTAÇÃO --}}
-            <button
-                @click="abrirModalExportacao = true"
-                class="bg-[#e8c153] hover:bg-[#f1d071] text-[#0c0f16] font-semibold px-5 py-2 rounded-md shadow-md transition"
-            >
-                Exportar Excel
-            </button>
+        <div wire:loading wire:target="tipoRelatorio"
+            class="mt-3 p-3 bg-[#121623] border border-[#2a3044] rounded-md text-sm text-[#e8c153] flex items-center gap-2">
+            <svg class="animate-spin w-4 h-4 text-[#e8c153]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor"
+                    d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+            </svg>
+            Carregando dados do próximo relatório...
         </div>
     </div>
 
     {{-- =========================
-        TABELA
+        TABELA DE DADOS
     ========================== --}}
-    <div class="overflow-x-auto border border-[#1e2433] rounded-lg shadow-inner">
+    <div wire:loading.remove wire:target="tipoRelatorio"
+        class="overflow-x-auto border border-[#1e2433] rounded-lg shadow-inner">
         <table class="w-full text-sm text-left border-collapse text-[#f3f4f6]">
             <thead class="bg-[#121623] text-[#e8c153] uppercase text-xs tracking-wider border-b border-[#1e2433]">
                 <tr>
-                    <template x-for="col in colunas" :key="col">
-                        <th class="px-4 py-3 text-center" x-text="col"></th>
-                    </template>
+                    @foreach (array_keys($dados[0] ?? []) as $coluna)
+                    <th class="px-4 py-3 text-center">{{ $coluna }}</th>
+                    @endforeach
                     <th class="px-4 py-3 text-center">Ações</th>
                 </tr>
             </thead>
 
             <tbody>
-                <template x-if="rows().length === 0">
-                    <tr>
-                        <td colspan="999" class="text-center py-6 text-gray-400">
-                            Nenhum dado encontrado.
-                        </td>
-                    </tr>
-                </template>
+                @forelse ($dados as $index => $linha)
+                @php
+                // Normaliza as chaves e remove arrays aninhados
+                $linha = collect($linha)
+                ->map(function ($v) {
+                if (is_array($v)) {
+                return json_encode($v, JSON_UNESCAPED_UNICODE);
+                }
+                return $v;
+                })
+                ->toArray();
+                $linha = array_change_key_case($linha, CASE_UPPER);
+                @endphp
 
-                <template x-for="(linha, index) in rows()" :key="linha.id ?? index">
-                    <tr
-                        class="border-b border-[#1e2433] hover:bg-[#151822] transition-colors"
-                        x-data="{ editando: false }"
-                    >
-                        <template x-for="col in colunas" :key="col">
-                            <td class="px-4 py-2 text-center">
-                                <template x-if="col === 'id'">
-                                    <span x-text="linha[col]" class="text-gray-400"></span>
-                                </template>
+                <tr class="border-b border-[#1e2433] hover:bg-[#151822] transition-colors"
+                    x-data="{ editando: false }">
 
-                                <template x-if="col.endsWith('_id')">
-                                    <div>
-                                        <span x-show="!editando" x-text="nomeFK(linha, col)" class="text-[#f3f4f6]"></span>
-                                        <select
-                                            x-show="editando"
-                                            x-model="linha[col]"
-                                            @change="syncFK(linha, col)"
-                                            class="bg-[#0c0f16] border border-[#2a3044] rounded-md text-[#f3f4f6] px-2 py-1 w-full"
-                                        >
-                                            <option value="">-- Selecione --</option>
-                                            <template x-for="opt in foreignOptions" :key="opt.id">
-                                                <option :value="opt.id" x-text="opt.nome"></option>
-                                            </template>
-                                        </select>
-                                    </div>
-                                </template>
+                    {{-- COLUNAS --}}
+                    @foreach ($linha as $campo => $valor)
+                    @php
+                    $campoBase = str_replace('_ID', '', $campo);
+                    $temFK = array_key_exists($campoBase . '_ID', $linha);
+                    @endphp
 
-                                <template x-if="!col.endsWith('_id') && col !== 'id'">
-                                    <div>
-                                        <span x-show="!editando" x-text="linha[col]" class="text-[#f3f4f6]"></span>
-                                        <input
-                                            x-show="editando"
-                                            type="text"
-                                            x-model="linha[col]"
-                                            class="bg-[#0c0f16] border border-[#2a3044] rounded-md px-2 py-1 w-full text-[#f3f4f6]"
-                                        />
-                                    </div>
-                                </template>
-                            </td>
+                    {{-- OCULTA NOME DA FK QUANDO EDITANDO --}}
+                    @if ($temFK && $campo === $campoBase)
+                    <td class="px-4 py-2 text-center text-gray-300" x-show="!editando">
+                        {{ $valor }}
+                    </td>
+                    @continue
+                    @endif
+
+                    <td class="px-4 py-2 text-center text-gray-300">
+                        {{-- VISUAL --}}
+                        <div x-show="!editando">
+                            {{ $valor }}
+                        </div>
+
+                        {{-- EDIÇÃO --}}
+                        <div x-show="editando" x-cloak>
+                            @if (str_ends_with(strtolower($campo), '_id') && !empty($foreignOptions))
+                            <select wire:model.defer="dados.{{ $index }}.{{ $campo }}"
+                                class="bg-[#0c0f16] border border-[#2a3044] rounded-md text-[#f3f4f6] px-2 py-1 w-full">
+                                <option value="">-- Selecione --</option>
+                                @foreach ($foreignOptions as $opt)
+                                <option value="{{ $opt['id'] }}">{{ $opt['nome'] }}</option>
+                                @endforeach
+                            </select>
+                            @elseif (strtolower($campo) === 'id')
+                            <span class="text-gray-500 text-xs">{{ $valor }}</span>
+                            @elseif (!in_array($campo, ['DATA_CRIACAO', 'ULTIMA_ATUALIZACAO']))
+                            <input type="text"
+                                wire:model.defer="dados.{{ $index }}.{{ $campo }}"
+                                class="bg-[#0c0f16] border border-[#2a3044] rounded-md px-2 py-1 w-full text-[#f3f4f6]" />
+                            @else
+                            <span class="text-gray-500 text-xs">{{ $valor }}</span>
+                            @endif
+                        </div>
+                    </td>
+                    @endforeach
+
+                    {{-- AÇÕES --}}
+                    <td class="px-4 py-2 text-center whitespace-nowrap">
+                        <template x-if="!editando">
+                            <div>
+                                <button @click="editando = true"
+                                    class="text-sky-400 hover:text-sky-300 mx-1 font-medium">
+                                    Editar
+                                </button>
+                                <button wire:click="delete({{ $linha['ID'] ?? 0 }})"
+                                    class="text-red-400 hover:text-red-300 mx-1 font-medium">
+                                    Excluir
+                                </button>
+                            </div>
                         </template>
 
-                        <td class="px-4 py-2 text-center whitespace-nowrap">
-                            <template x-if="!editando">
-                                <div>
-                                    <button @click="editando = true" class="text-sky-400 hover:text-sky-300 mx-1 font-medium">
-                                        editar
-                                    </button>
-                                    <button @click="$wire.delete(linha.id)" class="text-red-400 hover:text-red-300 mx-1 font-medium">
-                                        excluir
-                                    </button>
-                                </div>
-                            </template>
-
-                            <template x-if="editando">
-                                <div>
-                                    <button @click="$wire.saveEdit(index); editando=false" class="text-green-400 hover:text-green-300 mx-1 font-medium">
-                                        salvar
-                                    </button>
-                                    <button @click="editando=false" class="text-gray-400 hover:text-gray-300 mx-1 font-medium">
-                                        cancelar
-                                    </button>
-                                </div>
-                            </template>
-                        </td>
-                    </tr>
-                </template>
+                        <template x-if="editando">
+                            <div>
+                                <button wire:click="saveEdit({{ $linha['ID'] ?? 0 }}); editando=false"
+                                    class="text-green-400 hover:text-green-300 mx-1 font-medium">
+                                    Salvar
+                                </button>
+                                <button @click="editando=false"
+                                    class="text-gray-400 hover:text-gray-300 mx-1 font-medium">
+                                    Cancelar
+                                </button>
+                            </div>
+                        </template>
+                    </td>
+                </tr>
+                @empty
+                <tr>
+                    <td colspan="999" class="text-center py-6 text-gray-400">
+                        Nenhum dado encontrado.
+                    </td>
+                </tr>
+                @endforelse
             </tbody>
         </table>
     </div>
 
-    {{-- MODAL EXPORTAÇÃO --}}
-    <template x-if="abrirModalExportacao">
-        <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-            <div class="bg-[#0c0f16] border border-[#2a3044] rounded-xl p-6 w-[90%] sm:w-[450px] shadow-lg text-[#f3f4f6]">
-                <h3 class="text-lg font-semibold text-[#e8c153] mb-4">
-                    Selecionar tipos de relatório para exportar
-                </h3>
+    {{-- INDICADOR DE SALVAMENTO --}}
+    <div wire:loading wire:target="saveEdit"
+        class="mt-4 p-3 bg-[#121623] border border-[#2a3044] rounded-md text-sm text-[#e8c153] flex items-center gap-2">
+        <svg class="animate-spin w-4 h-4 text-[#e8c153]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor"
+                d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+        </svg>
+        Salvando alterações...
+    </div>
 
-                <div class="space-y-3 mb-5">
-                    <label class="flex items-center gap-2">
-                        <input type="checkbox" wire:model="exportar.grupos" class="accent-[#e8c153]">
-                        Grupos Econômicos
-                    </label>
-                    <label class="flex items-center gap-2">
-                        <input type="checkbox" wire:model="exportar.bandeiras" class="accent-[#e8c153]">
-                        Bandeiras
-                    </label>
-                    <label class="flex items-center gap-2">
-                        <input type="checkbox" wire:model="exportar.unidades" class="accent-[#e8c153]">
-                        Unidades
-                    </label>
-                    <label class="flex items-center gap-2">
-                        <input type="checkbox" wire:model="exportar.colaboradores" class="accent-[#e8c153]">
-                        Colaboradores
-                    </label>
-                </div>
 
-                <div class="flex justify-end gap-3">
-                    <button @click="abrirModalExportacao = false"
-                        class="px-4 py-2 bg-[#121623] border border-[#2a3044] rounded-md hover:text-[#e8c153] transition">
-                        Cancelar
-                    </button>
-                    <button wire:click="confirmarExportacao"
-                        class="px-4 py-2 bg-[#e8c153] hover:bg-[#f1d071] text-[#0c0f16] font-semibold rounded-md transition">
-                        Exportar
-                    </button>
-                </div>
+    {{-- INDICADOR DE SALVAMENTO --}}
+    <div wire:loading wire:target="saveEdit"
+        class="mt-4 p-3 bg-[#121623] border border-[#2a3044] rounded-md text-sm text-[#e8c153] flex items-center gap-2">
+        <svg class="animate-spin w-4 h-4 text-[#e8c153]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor"
+                d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+        </svg>
+        Salvando alterações...
+    </div>
 
-                @if ($msg)
-                    <p class="text-sm text-gray-400 mt-3">{{ $msg }}</p>
-                @endif
-            </div>
+    {{-- =========================
+        EXPORTAÇÃO (ABAIXO DA TABELA)
+    ========================== --}}
+    <div class="border-t border-[#2a3044] pt-6 mt-6">
+        <h3 class="text-[#e8c153] font-semibold mb-4">Exportar Relatórios</h3>
+
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+            <label class="flex items-center gap-2">
+                <input type="checkbox" wire:model="exportar.grupos" class="accent-[#e8c153]">
+                Grupos Econômicos
+            </label>
+            <label class="flex items-center gap-2">
+                <input type="checkbox" wire:model="exportar.bandeiras" class="accent-[#e8c153]">
+                Bandeiras
+            </label>
+            <label class="flex items-center gap-2">
+                <input type="checkbox" wire:model="exportar.unidades" class="accent-[#e8c153]">
+                Unidades
+            </label>
+            <label class="flex items-center gap-2">
+                <input type="checkbox" wire:model="exportar.colaboradores" class="accent-[#e8c153]">
+                Colaboradores
+            </label>
         </div>
-    </template>
 
-    {{-- Polling para verificar exportação --}}
-    @if ($pollingAtivo)
-        <div wire:poll.10s="verificarExportacao" class="text-sm text-[#e8c153] mt-3">
+        <button
+            wire:click="confirmarExportacao"
+            wire:loading.attr="disabled"
+            class="bg-[#e8c153] hover:bg-[#f1d071] text-[#0c0f16] font-semibold px-5 py-2 rounded-md shadow-md transition">
+            Exportar Excel
+        </button>
+
+        @if ($msg)
+        <div class="p-3 bg-[#121623] border border-[#2a3044] rounded-md text-sm text-gray-300 mt-4">
+            {{ $msg }}
+        </div>
+        @endif
+
+        @if ($pollingAtivo)
+        <div wire:poll.10s="verificarExportacao"
+            class="mt-3 p-3 bg-[#121623] border border-[#2a3044]
+                        rounded-md text-sm text-[#e8c153]">
             Verificando exportação...
         </div>
-    @endif
+        @endif
 
-    @if ($exportConcluido && $arquivoGerado)
+        @if ($exportConcluido && $arquivoGerado)
         <div class="mt-3 text-sm text-[#e8c153]">
-            Exportação concluída! <a href="{{ $arquivoGerado }}" target="_blank" class="underline text-sky-400">Baixar Excel</a>
+            ✅ Exportação concluída!
+            <a href="{{ $arquivoGerado }}" target="_blank" class="underline text-sky-400">
+                Baixar Excel
+            </a>
         </div>
-    @endif
+        @endif
+    </div>
 </div>
-
-{{-- =========================
-    SCRIPT ALPINE
-========================= --}}
-<script>
-    function relatoriosUI(dadosLive, tipoRelatorioLive, foreignOpts) {
-        return {
-            dados: dadosLive || [],
-            tipoRelatorio: tipoRelatorioLive,
-            foreignOptions: foreignOpts || [],
-            busca: '',
-            ordemCampo: 'id',
-            ordemAsc: true,
-            colunas: [],
-            abrirModalExportacao: false,
-
-            init() {
-                this.$watch('dados', v => {
-                    if (Array.isArray(v) && v.length)
-                        this.colunas = Object.keys(v[0]);
-                });
-                if (Array.isArray(this.dados) && this.dados.length)
-                    this.colunas = Object.keys(this.dados[0]);
-            },
-
-            nomeFK(linha, campo) {
-                const opt = this.foreignOptions.find(o => String(o.id) === String(linha[campo]));
-                return opt ? opt.nome : '—';
-            },
-
-            syncFK(linha, campo) {
-                const opt = this.foreignOptions.find(o => String(o.id) === String(linha[campo]));
-                if (!opt) return;
-                const nomeCampo = campo.replace('_id', '');
-                if (linha[nomeCampo] !== undefined) linha[nomeCampo] = opt.nome;
-            },
-
-            toggleSort(campo) {
-                if (this.ordemCampo === campo) this.ordemAsc = !this.ordemAsc;
-                else {
-                    this.ordemCampo = campo;
-                    this.ordemAsc = true;
-                }
-            },
-
-            rows() {
-                let out = Array.isArray(this.dados) ? [...this.dados] : [];
-
-                if (this.busca.trim()) {
-                    const termo = this.busca.toLowerCase();
-                    out = out.filter(l =>
-                        Object.values(l).some(v =>
-                            String(v ?? '').toLowerCase().includes(termo)
-                        )
-                    );
-                }
-
-                const campo = this.ordemCampo;
-                out.sort((a, b) => {
-                    let A = a[campo], B = b[campo];
-                    if (campo === 'id') return this.ordemAsc ? A - B : B - A;
-                    A = String(A ?? '').toLowerCase();
-                    B = String(B ?? '').toLowerCase();
-                    return this.ordemAsc ? A.localeCompare(B) : B.localeCompare(A);
-                });
-                return out;
-            },
-        };
-    }
-</script>
