@@ -4,11 +4,13 @@ use Illuminate\Support\Facades\Route;
 use App\Livewire\Auth\LoginComponent;
 use App\Livewire\Auth\RegisterComponent;
 use App\Livewire\Pages\HomeComponent;
+use App\Livewire\Pages\RelatoriosComponent; 
 
 // Página inicial redireciona para o login
 Route::get('/', function () {
     return redirect()->route('login');
 });
+
 
 // Rota de login
 Route::get('/login', LoginComponent::class)

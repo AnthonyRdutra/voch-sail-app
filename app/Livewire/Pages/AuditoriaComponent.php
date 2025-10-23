@@ -44,9 +44,9 @@ class AuditoriaComponent extends Component
                         'created_at' => $log->created_at?->format('Y-m-d H:i:s') ?? '—',
                     ];
                 })
-                ->values()        // 🔹 garante reindexação
+                ->values()        
                 ->all();
-            Log::debug('Auditoria logs =>', $this->logs);          // 🔹 e converte fora do map
+            Log::debug('Auditoria logs =>', $this->logs);         
         } catch (\Throwable $e) {
             Log::error('[Auditoria] Erro ao carregar logs: ' . $e->getMessage());
             $this->logs = [];

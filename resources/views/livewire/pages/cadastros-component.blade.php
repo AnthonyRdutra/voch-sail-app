@@ -10,10 +10,36 @@
             <input type="text" wire:model.defer="grupo_nome" placeholder="Digite o nome do grupo"
                 style="padding:8px;border:1px solid #2a3248;border-radius:6px;background:#1a2030;color:#f3f4f6;">
 
-            <button type="button" wire:click="grupoStore" wire:loading.attr="disabled">
-                <span wire:loading.remove wire:target="grupoStore">Salvar Grupo</span>
-                <span wire:loading wire:target="grupoStore">Salvando...</span>
+            <button
+                type="button"
+                wire:click="grupoStore"
+                wire:loading.attr="disabled"
+                class="bg-[#e8c153] hover:bg-[#f3d173] text-[#0c0f16] font-semibold
+           px-4 py-1.5 rounded-md shadow-sm flex items-center gap-1.5
+           text-sm transition disabled:opacity-70 disabled:cursor-not-allowed">
+
+                {{-- Estado normal --}}
+                <span wire:loading.remove wire:target="grupoStore" class="flex items-center gap-1.5">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
+                        viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span>Salvar Grupo</span>
+                </span>
+
+                {{-- Estado carregando --}}
+                <span wire:loading.flex wire:target="grupoStore" class="items-center gap-2">
+                    <svg class="animate-spin h-4 w-4 text-[#0c0f16]" xmlns="http://www.w3.org/2000/svg" fill="none"
+                        viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10"
+                            stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor"
+                            d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                    </svg>
+                    <span>Salvando...</span>
+                </span>
             </button>
+
         </div>
     </section>
 
@@ -32,13 +58,38 @@
                 style="padding:8px;border:1px solid #2a3248;border-radius:6px;background:#1a2030;color:#f3f4f6;">
                 <option value="">-- Selecione o Grupo Econômico --</option>
                 @foreach($grupoEconomico as $grupo)
-                    <option value="{{ $grupo['id'] }}">{{ $grupo['nome'] }}</option>
+                <option value="{{ $grupo['id'] }}">{{ $grupo['nome'] }}</option>
                 @endforeach
             </select>
 
-            <button type="button" wire:click="bandeiraStore" wire:loading.attr="disabled">
-                <span wire:loading.remove wire:target="bandeiraStore">Salvar Bandeira</span>
-                <span wire:loading wire:target="bandeiraStore">Salvando...</span>
+            <button
+                type="button"
+                wire:click="bandeiraStore"
+                wire:loading.attr="disabled"
+                class="bg-[#e8c153] hover:bg-[#f3d173] text-[#0c0f16] font-semibold
+           px-4 py-1.5 rounded-md shadow-sm flex items-center gap-1.5
+           text-sm transition disabled:opacity-70 disabled:cursor-not-allowed">
+
+                {{-- Estado normal --}}
+                <span wire:loading.remove wire:target="bandeiraStore" class="flex items-center gap-1.5">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
+                        viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span>Salvar Bandeira</span>
+                </span>
+
+                {{-- Estado carregando --}}
+                <span wire:loading.flex wire:target="bandeiraStore" class="items-center gap-2">
+                    <svg class="animate-spin h-4 w-4 text-[#0c0f16]" xmlns="http://www.w3.org/2000/svg" fill="none"
+                        viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10"
+                            stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor"
+                            d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                    </svg>
+                    <span>Salvando...</span>
+                </span>
             </button>
         </div>
     </section>
@@ -62,14 +113,40 @@
                 style="padding:8px;border:1px solid #2a3248;border-radius:6px;background:#1a2030;color:#f3f4f6;">
                 <option value="">-- Selecione a Bandeira --</option>
                 @foreach($bandeiras as $bandeira)
-                    <option value="{{ $bandeira['id'] }}">{{ $bandeira['nome'] }}</option>
+                <option value="{{ $bandeira['id'] }}">{{ $bandeira['nome'] }}</option>
                 @endforeach
             </select>
 
-            <button type="button" wire:click="unidadeStore" wire:loading.attr="disabled">
-                <span wire:loading.remove wire:target="unidadeStore">Salvar Unidade</span>
-                <span wire:loading wire:target="unidadeStore">Salvando...</span>
+            <button
+                type="button"
+                wire:click="unidadeStore"
+                wire:loading.attr="disabled"
+                class="bg-[#e8c153] hover:bg-[#f3d173] text-[#0c0f16] font-semibold
+           px-4 py-1.5 rounded-md shadow-sm flex items-center gap-1.5
+           text-sm transition disabled:opacity-70 disabled:cursor-not-allowed">
+
+                {{-- Estado normal --}}
+                <span wire:loading.remove wire:target="unidadeStore" class="flex items-center gap-1.5">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
+                        viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span>Salvar Unidade</span>
+                </span>
+
+                {{-- Estado carregando --}}
+                <span wire:loading.flex wire:target="unidadeStore" class="items-center gap-2">
+                    <svg class="animate-spin h-4 w-4 text-[#0c0f16]" xmlns="http://www.w3.org/2000/svg" fill="none"
+                        viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10"
+                            stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor"
+                            d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                    </svg>
+                    <span>Salvando...</span>
+                </span>
             </button>
+
         </div>
     </section>
 
@@ -92,14 +169,40 @@
                 style="padding:8px;border:1px solid #2a3248;border-radius:6px;background:#1a2030;color:#f3f4f6;">
                 <option value="">-- Selecione a Unidade --</option>
                 @foreach($unidades as $unidade)
-                    <option value="{{ $unidade['id'] }}">{{ $unidade['nome_fantasia'] ?? 'Sem nome' }}</option>
+                <option value="{{ $unidade['id'] }}">{{ $unidade['nome_fantasia'] ?? 'Sem nome' }}</option>
                 @endforeach
             </select>
 
-            <button type="button" wire:click="colaboradorStore" wire:loading.attr="disabled">
-                <span wire:loading.remove wire:target="colaboradorStore">Salvar Colaborador</span>
-                <span wire:loading wire:target="colaboradorStore">Salvando...</span>
+            <button
+                type="button"
+                wire:click="colaboradorStore"
+                wire:loading.attr="disabled"
+                class="bg-[#e8c153] hover:bg-[#f3d173] text-[#0c0f16] font-semibold
+           px-4 py-1.5 rounded-md shadow-sm flex items-center gap-1.5
+           text-sm transition disabled:opacity-70 disabled:cursor-not-allowed">
+
+                {{-- Estado normal --}}
+                <span wire:loading.remove wire:target="colaboradorStore" class="flex items-center gap-1.5">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
+                        viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span>Salvar Colaborador</span>
+                </span>
+
+                {{-- Estado carregando --}}
+                <span wire:loading.flex wire:target="colaboradorStore" class="items-center gap-2">
+                    <svg class="animate-spin h-4 w-4 text-[#0c0f16]" xmlns="http://www.w3.org/2000/svg" fill="none"
+                        viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10"
+                            stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor"
+                            d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                    </svg>
+                    <span>Salvando...</span>
+                </span>
             </button>
+
         </div>
     </section>
 </div>

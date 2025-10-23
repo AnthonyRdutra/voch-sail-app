@@ -24,9 +24,315 @@
 
         <button
             wire:click="relatorio"
-            class="bg-[#e8c153] hover:bg-[#f1d071] text-[#0c0f16] font-semibold px-5 py-2 rounded-md shadow-md transition">
-            Atualizar Relatório
+            wire:loading.attr="disabled"
+            class="bg-[#e8c153] hover:bg-[#f1d071] text-[#0c0f16] font-semibold
+           px-5 py-2 rounded-md shadow-md flex items-center gap-2 transition">
+
+            {{-- Estado normal --}}
+            <span wire:loading.remove wire:target="relatorio" class="flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
+                    viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M4 4v5h.582a8 8 0 0115.418 0H20V4m-9 16a8 8 0 01-8-8H3l3 3-3 3h2a8 8 0 008 8z" />
+                </svg>
+                <span>Atualizar Relatório</span>
+            </span>
+
+            {{-- Estado carregando --}}
+            <span wire:loading.flex wire:target="relatorio" class="items-center gap-2">
+                <svg class="animate-spin h-4 w-4 text-[#0c0f16]" xmlns="http://www.w3.org/2000/svg" fill="none"
+                    viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10"
+                        stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor"
+                        d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                </svg>
+                <span>Atualizando...</span>
+            </span>
         </button>
+    </div>
+
+    {{-- =========================
+    BLOCO DE EDIÇÃO INLINE
+========================= --}}
+    @if ($modoEdicao)
+    <div class="mb-6 rounded-xl border border-[#2a3044] bg-[#0f1422] text-gray-200 shadow-lg overflow-hidden transition-all duration-300 ease-out p-6">
+
+        {{-- Cabeçalho --}}
+        <div class="flex items-center justify-between mb-5">
+            <h2 class="text-lg font-semibold text-[#e8c153] flex items-center gap-2">
+                ✏️ Editar {{ ucfirst($tipoRelatorio) }}
+            </h2>
+
+            <button
+                wire:click="fecharEdicao"
+                wire:loading.attr="disabled"
+                class="px-3 py-1 rounded-md bg-gray-600 hover:bg-gray-500 text-white text-sm flex items-center gap-2 transition">
+
+                {{-- Texto padrão --}}
+                <span wire:loading.remove wire:target="fecharEdicao">Fechar</span>
+
+                {{-- Spinner durante o fechamento --}}
+                <span wire:loading.flex wire:target="fecharEdicao" class="items-center gap-2">
+                    <svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10"
+                            stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor"
+                            d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                    </svg>
+                    <span>Encerrando...</span>
+                </span>
+            </button>
+        </div>
+
+        @php
+        $mapaCampos = [
+        'grupos' => ['nome'],
+        'bandeiras' => ['nome', 'grupo_economico_id'],
+        'unidades' => ['nome_fantasia', 'razao_social', 'cnpj', 'bandeira_id'],
+        'colaboradores' => ['nome', 'email', 'cpf', 'unidade_id'],
+        ];
+        $permitidos = $mapaCampos[$tipoRelatorio] ?? [];
+
+        $fk = match ($tipoRelatorio) {
+        'bandeiras' => 'grupo_economico_id',
+        'unidades' => 'bandeira_id',
+        'colaboradores' => 'unidade_id',
+        default => null,
+        };
+        @endphp
+
+        {{-- Campos editáveis --}}
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            @foreach ($permitidos as $campo)
+            @php
+            $valorOriginal = $dadosEditaveis[$campo] ?? '';
+            @endphp
+
+            {{-- Campo de relação (dropdown) --}}
+            @if ($fk && $campo === $fk)
+            <div class="flex flex-col">
+                <label class="text-sm font-medium text-[#e8c153] mb-1">
+                    {{ ucfirst(str_replace('_', ' ', $campo)) }}
+                </label>
+                <select wire:model.defer="selectedData.{{ $campo }}"
+                    class="bg-[#1a1f2d] border border-[#2a3044] rounded-md px-3 py-2 text-gray-100 transition outline-none">
+                    <option value="">Selecione...</option>
+                    @foreach ($foreignOptions as $item)
+                    @php
+                    if ($tipoRelatorio === 'colaboradores'){
+                    $fkName = 'nome_fantasia';
+                    }else{
+                    $fkName = 'nome';
+                    }
+                    $val = $item['id'] ?? null;
+                    $label = $item[$fkName] ?? 'não foi possivel capturar dado';
+                    @endphp
+                    @if(!is_null($val))
+                    <option value="{{ $val }}" @selected($val==$valorOriginal)>
+                        {{ $label }}
+                    </option>
+                    @endif
+                    @endforeach
+
+                    @if (empty($foreignOptions))
+                    <option disabled>Sem opções disponíveis</option>
+                    @endif
+                </select>
+            </div>
+
+            {{-- Campo de texto --}}
+            @else
+            <div class="flex flex-col">
+                <label class="text-sm font-medium text-[#e8c153] mb-1">
+                    {{ ucfirst(str_replace('_', ' ', $campo)) }}
+                </label>
+                <input
+                    type="text"
+                    value="{{ $valorOriginal }}"
+                    wire:model.defer="editData.{{ $campo }}"
+                    placeholder="Digite o valor..."
+                    class="bg-[#1a1f2d] border border-[#2a3044] rounded-md px-3 py-2
+                               focus:ring-2 focus:ring-[#e8c153]/70 focus:border-[#e8c153]/40
+                               text-gray-100 placeholder-gray-500 outline-none transition">
+            </div>
+            @endif
+            @endforeach
+        </div>
+
+        <div class="flex justify-end mt-5">
+            <div class="flex justify-end mt-5 gap-3">
+
+                {{-- Botão Excluir --}}
+                <button
+                    wire:click="deleteRegistro({{ $editIndex }})"
+                    wire:loading.attr="disabled"
+                    class="bg-red-600 hover:bg-red-500 text-white font-semibold
+               px-4 py-1.5 rounded-md shadow-sm flex items-center gap-1.5
+               text-sm transition">
+
+                    {{-- Estado normal --}}
+                    <span wire:loading.remove wire:target="deleteRegistro" class="flex items-center gap-1.5">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
+                            viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                        <span>Excluir</span>
+                    </span>
+
+                    {{-- Estado carregando --}}
+                    <span wire:loading.flex wire:target="deleteRegistro" class="items-center gap-2">
+                        <svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none"
+                            viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10"
+                                stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor"
+                                d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                        </svg>
+                        <span>Excluindo...</span>
+                    </span>
+                </button>
+
+                {{-- Botão Salvar --}}
+                <button
+                    wire:click="saveEdit({{ $editIndex }})"
+                    wire:loading.attr="disabled"
+                    class="bg-[#e8c153] hover:bg-[#f3d173] text-[#0c0f16] font-semibold
+               px-4 py-1.5 rounded-md shadow-sm flex items-center gap-1.5
+               text-sm transition">
+
+                    {{-- Estado normal --}}
+                    <span wire:loading.remove wire:target="saveEdit" class="flex items-center gap-1.5">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
+                            viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span>Salvar</span>
+                    </span>
+
+                    {{-- Estado carregando --}}
+                    <span wire:loading.flex wire:target="saveEdit" class="items-center gap-2">
+                        <svg class="animate-spin h-4 w-4 text-[#0c0f16]" xmlns="http://www.w3.org/2000/svg" fill="none"
+                            viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10"
+                                stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor"
+                                d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                        </svg>
+                        <span>Salvando...</span>
+                    </span>
+                </button>
+            </div>
+        </div>
+    </div>
+    @endif
+
+    {{-- =========================
+        TABELA DE DADOS
+    ========================== --}}
+    <div class="p-6 text-gray-100">
+        <h2 class="text-xl font-semibold text-yellow-400 mb-4">
+            Visualização de Relatório Simplificada
+        </h2>
+
+        @if (!empty($this->dados))
+        <div class="overflow-x-auto rounded-xl border border-gray-700 shadow-md">
+            <table class="min-w-full text-sm border-collapse">
+                <thead class="bg-[#1a2030] text-yellow-400">
+                    <tr>
+                        @if ($this->tipoRelatorio != 'colaboradores')
+                        <th class="px-4 py-2 text-left border-b border-gray-700 uppercase">Nome</th>
+                        @else
+                        <th class="px-4 py-2 text-left border-b border-gray-700 uppercase">Nome Fantasia</th>
+                        @endif
+
+                        @if ($this->tipoRelatorio === 'unidades')
+                        <th class="px-4 py-2 text-left border-b border-gray-700 uppercase">Razão Social</th>
+                        <th class="px-4 py-2 text-left border-b border-gray-700 uppercase">CNPJ</th>
+                        @endif
+                        @if ($this->tipoRelatorio === 'colaboradores')
+                        <th class="px-4 py-2 text-left border-b border-gray-700 uppercase">Email</th>
+                        <th class="px-4 py-2 text-left border-b border-gray-700 uppercase">CPF</th>
+                        @endif
+
+                        @if ($this->tipoRelatorio != 'grupos')
+                        <th class="px-4 py-2 text-left border-b border-gray-700 uppercase">Relação</th>
+                        @endif
+
+                        <th class="px-4 py-2 text-left border-b border-gray-700 uppercase">Data Criação</th>
+                        <th class="px-4 py-2 text-left border-b border-gray-700 uppercase">Última Atualização</th>
+                        <th class="px-4 py-2 text-center border-b border-gray-700 uppercase">Ações</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    @foreach ($this->dados as $index => $linha)
+                    @php
+                    $dataCriacao = $linha['Data criação'] ?? $linha['created_at'] ?? 'dado não capturado';
+                    $dataAtualizacao = $linha['Última atualização'] ?? $linha['updated_at'] ?? 'dado não capturado';
+                    @endphp
+
+                    <tr class="border-b border-gray-800 hover:bg-[#222b3d] transition">
+                        <td class="px-4 py-2 text-gray-200 font-medium">
+                            {{ $linha['Nome_Fantasia'] ?? $linha['nome'] ?? $linha['Nome'] ?? 'dado não capturado' }}
+                        </td>
+
+
+                        {{-- CAMPOS ESPECÍFICOS DE UNIDADES --}}
+                        @if ($this->tipoRelatorio === 'unidades')
+                        <td class="px-4 py-2 text-gray-300">{{ $linha['razao_social'] ??  $linha['Razão_Social'] ?? 'dado não capturado' }}</td>
+                        <td class="px-4 py-2 text-gray-300">{{ $linha['cnpj'] ?? $linha['CNPJ'] ?? 'dado não capturado' }}</td>
+                        @endif
+
+                        {{-- CAMPOS ESPECÍFICOS DE COLABORADORES --}}
+                        @if ($this->tipoRelatorio === 'colaboradores')
+                        <td class="px-4 py-2 text-gray-300">{{ $linha['email'] ?? $linha['Email'] ?? $linha['e-mail'] ??'dado não capturado' }}</td>
+                        <td class="px-4 py-2 text-gray-300">{{ $linha['cpf'] ?? $linha['cpf'] ?? 'dado não capturado' }}</td>
+                        @endif
+
+
+                        {{-- RELAÇÃO --}}
+                        @if ($this->tipoRelatorio != 'grupos')
+                        <td class="px-4 py-2 text-gray-300">
+                            {{ $linha['unidade_nome'] ?? $linha['bandeira_nome'] ?? $linha['grupo_economico_nome'] ?? 'dado não capturado' }}
+                        </td>
+                        @endif
+
+                        {{-- CAMPOS GERAIS --}}
+                        <td class="px-4 py-2 text-gray-400">{{ $dataCriacao }}</td>
+                        <td class="px-4 py-2 text-gray-400">{{ $dataAtualizacao }}</td>
+
+                        <td class="px-4 py-2 text-center">
+                            <button
+                                wire:click="abrirEdicao({{ $index }})"
+                                wire:loading.attr="disabled"
+                                wire:target="abrirEdicao({{ $index }})"
+                                class="relative px-3 py-1 rounded bg-yellow-500 hover:bg-yellow-400 text-black font-semibold transition">
+                                {{-- Ícone normal --}}
+                                <span wire:loading.remove wire:target="abrirEdicao({{ $index }})">
+                                    ✏️ Editar
+                                </span>
+
+                                {{-- Spinner de carregamento --}}
+                                <span wire:loading wire:target="abrirEdicao({{ $index }})">
+                                    <svg class="animate-spin h-4 w-4 mx-auto text-black" xmlns="http://www.w3.org/2000/svg" fill="none"
+                                        viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor"
+                                            stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor"
+                                            d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                                    </svg>
+                                </span>
+                            </button>
+                        </td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+        @else
+        <p class="text-gray-400 italic">Nenhum dado disponível.</p>
+        @endif
     </div>
 
     {{-- =========================
@@ -49,145 +355,6 @@
             Carregando dados do próximo relatório...
         </div>
     </div>
-
-    {{-- =========================
-        TABELA DE DADOS
-    ========================== --}}
-    <div wire:loading.remove wire:target="tipoRelatorio"
-        class="overflow-x-auto border border-[#1e2433] rounded-lg shadow-inner">
-        <table class="w-full text-sm text-left border-collapse text-[#f3f4f6]">
-            <thead class="bg-[#121623] text-[#e8c153] uppercase text-xs tracking-wider border-b border-[#1e2433]">
-                <tr>
-                    @foreach (array_keys($dados[0] ?? []) as $coluna)
-                    <th class="px-4 py-3 text-center">{{ $coluna }}</th>
-                    @endforeach
-                    <th class="px-4 py-3 text-center">Ações</th>
-                </tr>
-            </thead>
-
-            <tbody>
-                @forelse ($dados as $index => $linha)
-                @php
-                // Normaliza e remove arrays aninhados
-                $linha = collect($linha)
-                ->map(function ($v) {
-                if (is_array($v)) {
-                return json_encode($v, JSON_UNESCAPED_UNICODE);
-                }
-                return $v;
-                })
-                ->toArray();
-
-                $linha = array_change_key_case($linha, CASE_LOWER);
-                $idLinha = $linha['id'] ?? null;
-                @endphp
-
-                <tr class="border-b border-[#1e2433] hover:bg-[#151822] transition-colors"
-                    x-data="{ editando: false }"
-                    wire:key="linha-{{ $idLinha ?? $index }}">
-
-                    {{-- COLUNAS --}}
-                    @foreach ($linha as $campo => $valor)
-                    @php
-                    $isId = strtolower($campo) === 'id';
-                    $isTimestamp = in_array($campo, ['created_at', 'updated_at', 'data_criacao', 'ultima_atualizacao']);
-                    $isForeignKey = str_ends_with($campo, '_id');
-                    @endphp
-
-                    <td class="px-4 py-2 text-center text-gray-300">
-                        {{-- VISUALIZAÇÃO --}}
-                        <div x-show="!editando">
-                            @if ($isId)
-                            <span class="text-gray-500 text-xs">{{ $valor }}</span>
-                            @else
-                            {{ $valor }}
-                            @endif
-                        </div>
-
-                        {{-- EDIÇÃO --}}
-                        <div x-show="editando" x-cloak>
-                            @if ($isForeignKey && !empty($foreignOptions))
-                            <select
-                                wire:model.defer="dados.{{ $index }}.{{ $campo }}"
-                                class="bg-[#0c0f16] border border-[#2a3044] rounded-md text-[#f3f4f6] px-2 py-1 w-full text-sm">
-                                <option value="">-- Selecione --</option>
-                                @foreach ($foreignOptions as $opt)
-                                <option value="{{ $opt['id'] }}">{{ $opt['nome'] }}</option>
-                                @endforeach
-                            </select>
-                            @elseif ($isId)
-                            <span class="text-gray-500 text-xs">{{ $valor }}</span>
-                            @elseif ($isTimestamp)
-                            <span class="text-gray-500 text-xs">{{ $valor }}</span>
-                            @else
-                            <input
-                                type="text"
-                                wire:model.defer="dados.{{ $index }}.{{ $campo }}"
-                                class="bg-[#0c0f16] border border-[#2a3044] rounded-md px-2 py-1 w-full text-[#f3f4f6] text-sm" />
-                            @endif
-                        </div>
-                    </td>
-                    @endforeach
-
-                    {{-- AÇÕES --}}
-                    <td class="px-4 py-2 text-center whitespace-nowrap">
-                        <template x-if="!editando">
-                            <div>
-                                <button
-                                    @click="editando = true"
-                                    class="text-sky-400 hover:text-sky-300 mx-1 font-medium transition">
-                                    Editar
-                                </button>
-                                <button
-                                    wire:click.stop="delete({{ $idLinha }})"
-                                    wire:loading.attr="disabled"
-                                    wire:target="delete"
-                                    class="text-red-400 hover:text-red-300 mx-1 font-medium transition">
-                                    <span wire:loading.remove wire:target="delete">Excluir</span>
-                                    <span wire:loading wire:target="delete" class="animate-pulse text-[#e8c153]">Excluindo...</span>
-                                </button>
-                            </div>
-                        </template>
-
-                        <template x-if="editando">
-                            <div>
-                                <button
-                                    wire:click="saveEdit({{ $idLinha }}); editando=false"
-                                    wire:loading.attr="disabled"
-                                    class="text-green-400 hover:text-green-300 mx-1 font-medium transition">
-                                    Salvar
-                                </button>
-                                <button
-                                    @click="editando=false"
-                                    class="text-gray-400 hover:text-gray-300 mx-1 font-medium transition">
-                                    Cancelar
-                                </button>
-                            </div>
-                        </template>
-                    </td>
-                </tr>
-                @empty
-                <tr>
-                    <td colspan="999" class="text-center py-6 text-gray-400">
-                        Nenhum dado encontrado.
-                    </td>
-                </tr>
-                @endforelse
-            </tbody>
-        </table>
-    </div>
-
-    {{-- INDICADOR DE SALVAMENTO --}}
-    <div wire:loading wire:target="saveEdit"
-        class="mt-4 p-3 bg-[#121623] border border-[#2a3044] rounded-md text-sm text-[#e8c153] flex items-center gap-2">
-        <svg class="animate-spin w-4 h-4 text-[#e8c153]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor"
-                d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
-        </svg>
-        Salvando alterações...
-    </div>
-
 
     {{-- INDICADOR DE SALVAMENTO --}}
     <div wire:loading wire:target="saveEdit"

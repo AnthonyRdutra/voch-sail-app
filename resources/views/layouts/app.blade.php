@@ -25,9 +25,6 @@
 </head>
 
 <body class="bg-slate-950 text-slate-100 font-[Inter] antialiased">
-    <header class="flex items-center justify-between px-8 py-4 border-b border-slate-800 bg-slate-900/70 backdrop-blur">
-        <span class="text-sm text-slate-400">Painel de Cadastros</span>
-    </header>
 
     <main class="p-8">
         {{ $slot }}

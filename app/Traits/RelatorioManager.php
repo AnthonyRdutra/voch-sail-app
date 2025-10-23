@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Http\JsonResponse;
+use App\Traits\ControllerInvoker;
 
 trait RelatorioManager
 {
@@ -24,6 +25,7 @@ trait RelatorioManager
 
     public function relatorio()
     {
+
         try {
             $controller = $this->getController();
 
@@ -31,9 +33,8 @@ trait RelatorioManager
                 $this->msg = 'Tipo de relatório inválido.';
                 $this->dados = [];
                 return;
-            }
+            };
 
-            // Coleta e formata dados conforme o tipo
             switch ($this->tipoRelatorio) {
                 case 'grupos':
                     $dados = \App\Models\GrupoEconomico::all()->toArray();
@@ -59,19 +60,12 @@ trait RelatorioManager
                     $this->dados = [];
             }
 
-            // Normaliza as chaves para não quebrar o Blade
-            $this->dados = collect($this->dados)
-                ->map(function ($item) {
-                    return collect($item)->keyBy(
-                        fn($v, $k) =>
-                        str_replace(
-                            [' ', 'á', 'ã', 'â', 'ç', 'é', 'ó', 'í', 'ú', 'Á', 'Ã', 'Ç', 'É', 'Ó', 'Í', 'Ú'],
-                            ['_', 'a', 'a', 'a', 'c', 'e', 'o', 'i', 'u', 'A', 'A', 'C', 'E', 'O', 'I', 'U'],
-                            mb_strtoupper($k)
-                        )
-                    )->toArray();
-                })
-                ->toArray();
+
+            if (!empty($this->dados)) {
+                $this->headers = array_keys(collect($this->dados)->first());
+                $this->headers = array_filter($this->headers, fn($h) => $h !== 'unformatted_data');
+            }
+
 
             $this->foreignOptions = $this->getForeignOptions($this->tipoRelatorio);
             $this->msg = "Exibindo relatório de " . ucfirst($this->tipoRelatorio) . ".";
@@ -96,183 +90,88 @@ trait RelatorioManager
         $this->editIndex = null;
     }
 
-    public function saveEdit($id)
+    public function saveEdit($index)
     {
         try {
-            $controllerClass = $this->getControllerByType($this->tipoRelatorio ?? '');
-            if (!$controllerClass) {
-                $this->msg = "Tipo de relatório inválido.";
+            if (!isset($this->dados[$index])) {
+                Log::warning("Índice inválido em saveEdit: {$index}");
                 return;
             }
 
-            $this->audit(Auth::user()->name, 'delete', $this->tipoRelatorio, $this->dados);
+            $linha = $this->dados[$index];
 
-            // Localiza o item (aceita 'id' ou 'ID')
-            $index = collect($this->dados)->search(
-                fn($i) => (($i['id'] ?? $i['ID'] ?? null) == $id)
-            );
+            $dataOriginal = $linha['unformatted_data'] ?? [];
+            $id = $dataOriginal['id'] ?? null;
 
-            if ($index === false) {
-                $this->msg = "Registro não encontrado localmente.";
+            if (!$id) {
+                Log::error("Nenhum ID encontrado para atualização", $dataOriginal);
                 return;
             }
 
-            $item = $this->dados[$index];
-
-            // ==== 1) Mapeia labels → campos reais (por tipo de relatório) ====
-            // Ajuste os aliases conforme seus controllers/DB:
-            $aliasesPorTipo = [
-                'grupos' => [
-                    'nome' => ['NOME', 'Nome', 'Grupo', 'GRUPO'],
-                ],
-                'bandeiras' => [
-                    'nome' => ['NOME', 'Nome', 'Bandeira', 'BANDEIRA'],
-                    'grupo_economico_id' => ['GRUPO', 'GRUPO_ECONOMICO', 'Grupo Econômico'],
-                ],
-                'unidades' => [
-                    'nome' => ['NOME', 'Nome', 'Unidade', 'UNIDADE'],
-                    'bandeira_id' => ['BANDEIRA', 'Bandeira'],
-                    'grupo_economico_id' => ['GRUPO', 'GRUPO_ECONOMICO', 'Grupo Econômico'],
-                ],
-                'colaboradores' => [
-                    'nome' => ['NOME', 'Nome'],
-                    'unidade_id' => ['UNIDADE', 'Unidade'],
-                ],
-            ];
-
-            $aliases = $aliasesPorTipo[$this->tipoRelatorio] ?? [];
-
-            // ==== 2) Normaliza as chaves do item e aplica aliases ====
-            $dadosNormalizados = [];
-
-            // Primeiro: transforma todas as chaves em snake-case minúsculo
-            foreach ($item as $chave => $valor) {
-                $k = Str::snake(Str::of($chave)->trim()->lower()->toString());
-
-                // Ignora metacampos exibidos
-                if (in_array($k, ['id', 'created_at', 'updated_at', 'data_criacao', 'ultima_atualizacao'])) {
-                    continue;
-                }
-
-                $dadosNormalizados[$k] = $valor;
+            $editData = $this->editData ?? [];
+            if (empty($editData)) {
+                Log::warning("Nenhum dado de edição recebido", ['index' => $index]);
+                return;
             }
 
-            // Depois: aplica aliases para garantir que 'nome' exista, etc.
-            foreach ($aliases as $campoReal => $possiveisLabels) {
-                if (!array_key_exists($campoReal, $dadosNormalizados)) {
-                    foreach ($possiveisLabels as $label) {
-                        $lk = Str::snake(Str::of($label)->trim()->lower()->toString());
-                        if (array_key_exists($lk, $dadosNormalizados)) {
-                            $dadosNormalizados[$campoReal] = $dadosNormalizados[$lk];
-                            break;
-                        }
-                    }
-                }
+
+            $controller = $this->getController($this->tipoRelatorio);
+            if (!$controller) {
+                Log::error("Controller não encontrado para tipo: {$this->tipoRelatorio}");
+                return;
             }
+            $mudancas = $this->compararArraysSimples($dataOriginal, $editData);
 
-            // Segurança extra: remova chaves “apresentacionais” que tenham
-            // escapado, mantendo só o que é snake-case alfanumérico/underscore.
-            $dadosNormalizados = collect($dadosNormalizados)
-                ->filter(fn($v, $k) => preg_match('/^[a-z0-9_]+$/', $k))
-                ->toArray();
+            $this->audit(Auth::user()->name, 'update', $this->tipoRelatorio,$mudancas);
+            
+            $request = new Request($editData);
 
-            // ==== 3) Forma mais robusta de montar o Request ====
-            // Usa POST + _method=PUT para que $request->input() pegue tudo.
-            $request = Request::create(
-                uri: '',
-                method: 'POST',
-                parameters: array_merge($dadosNormalizados, ['_method' => 'PUT'])
-            );
-            $request->headers->set('Content-Type', 'application/x-www-form-urlencoded');
-
-            // ==== 4) Chama o controller ====
-            $controller = app($controllerClass);
-            $response = $controller->update($request, $id);
-
-            // ==== 5) Extrai payload de forma defensiva ====
-            if ($response instanceof JsonResponse) {
-                $payload = json_decode($response->getContent(), true);
-            } elseif (method_exists($response, 'getData')) {
-                $payload = $response->getData(true);
-            } else {
-                $payload = (array) $response;
-            }
-
-            // ==== 6) Atualiza a linha localmente (se vier 'data') ====
-            $dataAtualizada = $payload['data'] ?? null;
-            if ($dataAtualizada) {
-                $this->dados[$index] = $dataAtualizada;
-            }
-
-            $this->msg = $payload['message'] ?? 'Registro atualizado com sucesso!';
-
-            \Log::info('Atualização concluída', [
+            Log::debug("Chamando update em {$controller}::update()", [
                 'id' => $id,
-                'controller' => $controllerClass,
-                'payload_enviado' => $dadosNormalizados,
-                'msg' => $this->msg,
+                'dados' => $editData,
             ]);
+
+            $arr = $this->compararArrays($this->editData, $editData);
+            $response = app($controller)->update($request, $id);
+
+            $this->dados[$index]['unformatted_data'] = array_merge($dataOriginal, $editData);
+
+            $this->msg = 'Registro atualizado com sucesso!';
+            $this->fecharEdicao();
+
+            Log::info(" Registro atualizado com sucesso", ['id' => $id]);
         } catch (\Throwable $e) {
-            $this->msg = "Erro ao atualizar: " . $e->getMessage();
-            \Log::error('Erro em saveEdit()', [
-                'id' => $id,
-                'exception' => $e->getMessage(),
+            Log::error("Erro ao salvar edição: {$e->getMessage()}", [
                 'trace' => $e->getTraceAsString(),
             ]);
+            $this->msg = 'Erro ao salvar a edição.';
         }
     }
 
-
-    public function delete($id)
+    protected function compararArraysSimples(array $original, array $atualizado): array
     {
-        try {
-            Log::info('🧭 MÉTODO DELETE INICIADO', ['id' => $id, 'tipo' => $this->tipoRelatorio]);
+        $ignorar = ['id', 'created_at', 'updated_at'];
+        $diferencas = [];
 
-            $modelClass = match ($this->tipoRelatorio) {
-                'grupos'        => \App\Models\GrupoEconomico::class,
-                'bandeiras'     => \App\Models\Bandeira::class,
-                'unidades'      => \App\Models\Unidade::class,
-                'colaboradores' => \App\Models\Colaborador::class,
-                default         => null,
-            };
+        $original = array_diff_key($original, array_flip($ignorar));
+        $atualizado = array_diff_key($atualizado, array_flip($ignorar));
 
-            if (!$modelClass) {
-                $this->msg = 'Tipo de relatório inválido.';
-                return;
+        foreach ($atualizado as $chave => $valorNovo) {
+            $valorAntigo = $original[$chave] ?? null;
+
+            if (is_array($valorNovo) || is_array($valorAntigo)) {
+                continue; // ignora subarrays
             }
 
-            $registro = $modelClass::find($id);
-            if (!$registro) {
-                $this->msg = "Registro não encontrado (ID: {$id}).";
-                $this->dados = array_values(array_filter(
-                    $this->dados,
-                    fn($item) => (($item['id'] ?? $item['ID'] ?? null) != $id)
-                ));
-                return;
+            if ($valorAntigo !== $valorNovo) {
+                $diferencas[$chave] = [
+                    'antes' => $valorAntigo,
+                    'depois' => $valorNovo,
+                ];
             }
-
-            $registro->delete();
-
-            $this->dados = array_values(array_filter(
-                $this->dados,
-                fn($item) => (($item['id'] ?? $item['ID'] ?? null) != $id)
-            ));
-
-            $this->audit(Auth::user()->name, 'delete', $this->tipoRelatorio, [
-                'id' => $id,
-                'nome' => $registro->nome ?? null,
-            ]);
-
-            $this->msg = "Registro excluído com sucesso (ID {$id}).";
-            Log::info('✅ Exclusão concluída', ['id' => $id]);
-        } catch (\Throwable $e) {
-            $this->msg = 'Erro ao excluir: ' . $e->getMessage();
-            Log::error('💥 Erro em delete()', [
-                'id' => $id,
-                'exception' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
         }
+
+        return $diferencas;
     }
 
     /**
@@ -350,7 +249,7 @@ trait RelatorioManager
             $this->msg = 'Arquivo não encontrado no servidor.';
             return;
         }
-
+        $this->audit(Auth::user()->name, 'export', $this->tipoRelatorio, 'exportação de relatório');
         return response()->download($path);
     }
 

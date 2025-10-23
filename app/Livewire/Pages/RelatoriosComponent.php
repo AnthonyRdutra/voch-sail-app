@@ -10,18 +10,21 @@ use App\Traits\{
     RelatorioFormatter,
     RelatorioControllerResolver,
     RelatorioExporter,
-    RelatorioManager
+    RelatorioManager,
+    LogAuditoria
 };
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Auth;
 
 class RelatoriosComponent extends Component
 {
 
-     use ControllerInvoker, RelatorioFormatter, RelatorioControllerResolver, RelatorioExporter, RelatorioManager;
+    use ControllerInvoker, RelatorioFormatter, RelatorioControllerResolver, RelatorioExporter, RelatorioManager, LogAuditoria;
 
     public $tipoRelatorio = 'grupos';
     public $dados = [];
+    public $headers = [];
     public $msg;
     public $editIndex = null;
     public $foreignOptions;
@@ -38,6 +41,14 @@ class RelatoriosComponent extends Component
     public $pollingTentativas = 0;
     public $pollingMaxTentativas = 10;
     public $path = 'exports';
+    public $editData;
+    public $fkField;
+    public $rawData;
+    public $selectedData = null;
+    public $modoEdicao = false;
+    public $fechando;
+    public $dadosEditaveis = [];
+    public $before;
 
     public function mount()
     {
@@ -49,6 +60,105 @@ class RelatoriosComponent extends Component
     {
         $this->relatorio();
         $this->foreignOptions = $this->getForeignOptions($this->tipoRelatorio);
+    }
+
+    public function abrirEdicao($index)
+    {
+        if (!isset($this->dados[$index])) {
+            $this->modoEdicao = false;
+            $this->selectedData = [];
+            $this->dadosEditaveis = [];
+            return;
+        }
+
+        $conteudo = $this->dados[$index]['unformatted_data'] ?? [];
+        if (is_string($conteudo)) {
+            $decoded = json_decode($conteudo, true);
+            $conteudo = json_last_error() === JSON_ERROR_NONE ? $decoded : [];
+        }
+
+        if (!is_array($conteudo)) {
+            $conteudo = [];
+        }
+
+        $this->dadosEditaveis = $conteudo;
+
+        $this->selectedData = $conteudo;
+        $this->editIndex = $index;
+        $this->editData = $this->selectedData;
+        $this->before = $this->editData;
+        $this->modoEdicao = true;
+    }
+
+    public function fecharEdicao()
+    {
+        $this->modoEdicao = false;
+        $this->selectedData = null;
+    }
+
+
+    public function deleteRegistro($index)
+    {
+        try {
+            if (!isset($this->dados[$index])) {
+                $this->msg = 'Registro inválido para exclusão.';
+                return;
+            }
+            if($this->tipoRelatorio === 'unidades'){
+                $field = 'nome';
+            }else{
+                $field = 'nome_fantasia';
+            }
+            $this->audit(Auth::user()->name, 'update', $this->tipoRelatorio,$this->dados[$field]);
+            $linha = $this->dados[$index];
+            $data = $linha['unformatted_data'] ?? [];
+            $id = $data['id'] ?? null;
+
+            if (!$id) {
+                $this->msg = 'ID não encontrado para exclusão.';
+                return;
+            }
+
+            $controller = $this->getController($this->tipoRelatorio);
+            if (!$controller) {
+                $this->msg = 'Controller não encontrado.';
+                return;
+            }
+
+            Log::debug("Deletando {$this->tipoRelatorio} (ID: {$id}) via {$controller}::destroy()");
+
+            // Chama o método destroy diretamente
+            app($controller)->destroy($id);
+
+            unset($this->dados[$index]);
+            $this->dados = array_values($this->dados); // reindexa o array
+
+            $this->msg = 'Registro excluído com sucesso!';
+            $this->fecharEdicao();
+
+            Log::info("Registro ID {$id} removido com sucesso");
+        } catch (\Throwable $e) {
+            Log::error("Erro ao excluir registro: {$e->getMessage()}", [
+                'trace' => $e->getTraceAsString(),
+            ]);
+            $this->msg = 'Erro ao excluir o registro.';
+        }
+    }
+
+
+    public function getForeignOptions(string $tipo): array
+    {
+        return match ($tipo) {
+            'bandeiras'     => \App\Models\GrupoEconomico::select('id', 'nome')->get()->toArray(),
+            'unidades'      => \App\Models\Bandeira::select('id', 'nome')->get()->toArray(),
+            'colaboradores' => \App\Models\Unidade::select('id', 'nome_fantasia as nome')->get()->toArray(),
+            default         => [],
+        };
+    }
+
+    public function compare()
+    {
+        /// data
     }
 
     public function confirmarExportacao()
@@ -163,6 +273,7 @@ class RelatoriosComponent extends Component
         $this->exportConcluido = true;
         $this->pollingAtivo = false;
     }
+
 
     public function render()
     {

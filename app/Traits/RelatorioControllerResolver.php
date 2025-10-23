@@ -43,6 +43,7 @@ trait RelatorioControllerResolver
      */
     public function getForeignOptions(string $tipo): array
     {
+
         return match ($tipo) {
             'bandeiras'     => GrupoEconomico::select('id', 'nome')->get()->toArray(),
             'unidades'      => Bandeira::select('id', 'nome')->get()->toArray(),

@@ -21,8 +21,9 @@ trait RelatorioFormatter
         return collect($items)->map(fn($data) => [
             'id' => $data['id'],
             'Nome' => $data['nome'],
-            'Data Criação' => $this->fmt($data['created_at']),
+            'Data criação' => $this->fmt($data['created_at']),
             'Última atualização' => $this->fmt($data['updated_at']),
+            'unformatted_data' => $data
         ])->toArray();
     }
 
@@ -34,9 +35,10 @@ trait RelatorioFormatter
                 'id' => $data['id'],
                 'nome' => $data['nome'],
                 'grupo_economico_id' => $grupo['id'] ?? null,
-                'grupo_economico' => $grupo['nome'] ?? '—',
-                'Data Criação' => $this->fmt($data['created_at']),
+                'grupo_economico_nome' => $grupo['nome'] ?? '—',
+                'Data criação' => $this->fmt($data['created_at']),
                 'Última atualização' => $this->fmt($data['updated_at']),
+                'unformatted_data' => $data
             ];
         })->toArray();
     }
@@ -52,9 +54,10 @@ trait RelatorioFormatter
                 'Razão_Social' => $data['razao_social'],
                 'CNPJ' => $data['cnpj'],
                 'bandeira_id' => $bandeira['id'] ?? null,
-                'bandeira' => $bandeira['nome'] ?? '—',
-                'Data Criação' => $this->fmt($data['created_at']),
-                'Última Atualização' => $this->fmt($data['updated_at']),
+                'bandeira_nome' => $bandeira['nome'] ?? '—',
+                'Data criação' => $this->fmt($data['created_at']),
+                'Última atualização' => $this->fmt($data['updated_at']),
+                'unformatted_data' => $data
             ];
         })->toArray();
     }
@@ -70,9 +73,10 @@ trait RelatorioFormatter
                 'email' => $data['email'],
                 'cpf' => $data['cpf'],
                 'unidade_id' => $unidade['id'] ?? null,
-                'unidade' => $unidade['nome_fantasia'] ?? '—',
-                'Data Criação' => $this->fmt($data['created_at']),
-                'Última Atualização' => $this->fmt($data['updated_at']),
+                'unidade_nome' => $unidade['nome_fantasia'] ?? '—',
+                'Data criação' => $this->fmt($data['created_at']),
+                'Última atualização' => $this->fmt($data['updated_at']),
+                'unformatted_data' => $data
             ];
         })->toArray();
     }
